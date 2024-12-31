@@ -528,6 +528,35 @@ def compute_ap(recall, precision):
 
     return ap, mpre, mrec
 
+def compute_ap_kitti(recall, precision):
+    """
+    Compute the average precision (AP) using 40 recall positions as per
+    'Disentangling Monocular 3D Object Detection'.
+    (more information: https://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=bev)
+
+    Args:
+        recall (list): The recall curve
+        precision (list): The precision curve
+
+    Returns:
+        (float): Average precision
+        (np.ndarray): Precision envelope curve
+        (np.ndarray): Modified recall curve
+    """
+    # Append sentinel values
+    mrec = np.concatenate(([0.0], recall, [1.0]))
+    mpre = np.concatenate(([1.0], precision, [0.0]))
+
+    # Compute the precision envelope
+    mpre = np.flip(np.maximum.accumulate(np.flip(mpre)))
+
+   # Calculate AP using 40 recall positions (KITTI standard)
+   # NOTE: https://dl.acm.org/doi/10.1016/j.patrec.2022.04.028
+    x = np.linspace(0, 1, 40) # 40-point interpolated AP (KITTI)
+    prec_at_recall = np.interp(x, mrec, mpre)
+    ap = np.mean(prec_at_recall) # Mean
+
+    return ap, mpre, mrec
 
 def ap_per_class(
     tp, conf, pred_cls, target_cls, plot=False, on_plot=None, save_dir=Path(), names={}, eps=1e-16, prefix=""
@@ -617,6 +646,86 @@ def ap_per_class(
     fp = (tp / (p + eps) - tp).round()  # false positives
     return tp, fp, p, r, f1, ap, unique_classes.astype(int), p_curve, r_curve, f1_curve, x, prec_values
 
+def ap_per_class_kitti(tp, conf, pred_cls, target_cls, plot=False, on_plot=None, save_dir=Path(), names={}, eps=1e-16, prefix=""):
+    """
+    Computes the average precision per class for object detection evaluation using 40 recall positions
+    as suggested in 'Disentangling Monocular 3D Object Detection'.
+
+    Args:
+        tp (np.ndarray): Binary array indicating whether the detection is correct (True) or not (False).
+        conf (np.ndarray): Array of confidence scores of the detections.
+        pred_cls (np.ndarray): Array of predicted classes of the detections.
+        target_cls (np.ndarray): Array of true classes of the detections.
+        plot (bool, optional): Whether to plot PR curves or not. Defaults to False.
+        on_plot (func, optional): A callback to pass plots path and data when they are rendered. Defaults to None.
+        save_dir (Path, optional): Directory to save the PR curves. Defaults to an empty path.
+        names (dict, optional): Dict of class names to plot PR curves. Defaults to an empty tuple.
+        eps (float, optional): A small value to avoid division by zero. Defaults to 1e-16.
+        prefix (str, optional): A prefix string for saving the plot files. Defaults to an empty string.
+
+    Returns:
+        Same as original function but with modified AP calculation using 40 recall positions.
+    """
+    check_method = False
+
+    # Sort by objectness
+    i = np.argsort(-conf)
+    tp, conf, pred_cls = tp[i], conf[i], pred_cls[i]
+
+    # Find unique classes
+    unique_classes, nt = np.unique(target_cls, return_counts=True)
+    nc = unique_classes.shape[0]  # number of classes, number of detections
+
+    # Create Precision-Recall curve and compute AP for each class
+    x, prec_values = np.linspace(0, 1, 1000), []
+
+    # Average precision, precision and recall curves
+    ap, p_curve, r_curve = np.zeros((nc, tp.shape[1])), np.zeros((nc, 1000)), np.zeros((nc, 1000))
+    for ci, c in enumerate(unique_classes):
+        i = pred_cls == c
+        n_l = nt[ci]  # number of labels
+        n_p = i.sum()  # number of predictions
+        if n_p == 0 or n_l == 0:
+            continue
+
+        # Accumulate FPs and TPs
+        fpc = (1 - tp[i]).cumsum(0)
+        tpc = tp[i].cumsum(0)
+
+	    # Recall
+        recall = tpc / (n_l + eps)  # recall curve
+        r_curve[ci] = np.interp(-x, -conf[i], recall[:, 0], left=0)  # negative x, xp because xp decreases
+
+        # Precision
+        precision = tpc / (tpc + fpc)  # precision curve
+        p_curve[ci] = np.interp(-x, -conf[i], precision[:, 0], left=1)  # p at pr_score
+
+	    # AP from recall-precision curve
+        for j in range(tp.shape[1]):
+            ap[ci, j], mpre, mrec = compute_ap_kitti(recall[:, j], precision[:, j]) # average over 40 recall positions
+            if not check_method:
+                print('New AP calculation method (40 recall points) is being used.')
+                check_method = True
+            if j == 0:
+                prec_values.append(np.interp(x, mrec, mpre))  # precision at mAP@0.5
+
+    prec_values = np.array(prec_values)  # (nc, 1000)
+
+   # Compute F1 (harmonic mean of precision and recall)
+    f1_curve = 2 * p_curve * r_curve / (p_curve + r_curve + eps)
+    names = [v for k, v in names.items() if k in unique_classes]  # list: only classes that have data
+    names = dict(enumerate(names))  # to dict
+    if plot:
+        plot_pr_curve(x, prec_values, ap, save_dir / f"{prefix}PR_curve.png", names, on_plot=on_plot)
+        plot_mc_curve(x, f1_curve, save_dir / f"{prefix}F1_curve.png", names, ylabel="F1", on_plot=on_plot)
+        plot_mc_curve(x, p_curve, save_dir / f"{prefix}P_curve.png", names, ylabel="Precision", on_plot=on_plot)
+        plot_mc_curve(x, r_curve, save_dir / f"{prefix}R_curve.png", names, ylabel="Recall", on_plot=on_plot)
+
+    i = smooth(f1_curve.mean(0), 0.1).argmax()  # max F1 index
+    p, r, f1 = p_curve[:, i], r_curve[:, i], f1_curve[:, i]  # max-F1 precision, recall, F1 values
+    tp = (r * nt).round()  # true positives
+    fp = (tp / (p + eps) - tp).round()  # false positives
+    return tp, fp, p, r, f1, ap, unique_classes.astype(int), p_curve, r_curve, f1_curve, x, prec_values
 
 class Metric(SimpleClass):
     """
@@ -626,12 +735,13 @@ class Metric(SimpleClass):
         p (list): Precision for each class. Shape: (nc,).
         r (list): Recall for each class. Shape: (nc,).
         f1 (list): F1 score for each class. Shape: (nc,).
-        all_ap (list): AP scores for all classes and all IoU thresholds. Shape: (nc, 10).
+        all_ap (list): AP scores for all classes and all (0.5-0.95) IoU thresholds. Shape: (nc, 10).
         ap_class_index (list): Index of class for each AP score. Shape: (nc,).
         nc (int): Number of classes.
 
     Methods:
         ap50(): AP at IoU threshold of 0.5 for all classes. Returns: List of AP scores. Shape: (nc,) or [].
+	    ap70(): AP at IoU threshold of 0.7 for all classes. Returns: List of AP scores. Shape: (nc,) or [].
         ap(): AP at IoU thresholds from 0.5 to 0.95 for all classes. Returns: List of AP scores. Shape: (nc,) or [].
         mp(): Mean precision of all classes. Returns: Float.
         mr(): Mean recall of all classes. Returns: Float.
@@ -662,10 +772,25 @@ class Metric(SimpleClass):
         Returns:
             (np.ndarray, list): Array of shape (nc,) with AP50 values per class, or an empty list if not available.
         """
+        # [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+        print(f'class Metric: used AP for ap50: {self.all_ap[:, 0]}')
         return self.all_ap[:, 0] if len(self.all_ap) else []
 
+    # 25.12.2024 Average Precision for IoU 0.7.
     @property
-    def ap(self):
+    def ap70(self): # NOTE: https://github.com/ultralytics/ultralytics/issues/9138
+        """
+        Returns the Average Precision (AP) at an IoU threshold of 0.7 for all classes.
+
+        Returns:
+        (np.array, list): Array of shape (nc,) with AP70 values per class, or an empty list if not available.
+        """
+        # [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+        print(f'class Metric: used AP for ap70: {self.all_ap[:, 4]}')
+        return self.all_ap[:, 4] if len(self.all_ap) else 0.0
+
+    @property
+    def ap(self): # # Note: Default this value represents the AP for one specific class, and not overall classes (mAP).
         """
         Returns the Average Precision (AP) at an IoU threshold of 0.5-0.95 for all classes.
 
@@ -673,6 +798,30 @@ class Metric(SimpleClass):
             (np.ndarray, list): Array of shape (nc,) with AP50-95 values per class, or an empty list if not available.
         """
         return self.all_ap.mean(1) if len(self.all_ap) else []
+
+    @property
+    def ap_custom(self): # TODO: rethink about Average Precision columnn BEVDetNet
+        """
+        Returns the Average Precision (AP) at an IoU threshold of 0.5 & 0.7 for all classes.
+
+        Returns:
+            (np.ndarray, list): Array of shape (nc,) with AP50&70 values per class, or an empty list if not available.
+        """
+        return (self.all_ap[:, 0].mean(), self.all_ap[:, 4].mean()) if len(self.all_ap) else ([], [])
+
+    """
+    KITTI AP
+    sum = 0;
+    for (i=1; i<=40; i++)
+        sum += vals[i]; 
+    average = sum/40.0;
+    """
+    # NOTE: https://github.com/lzccccc/kitti_eval_offline/blob/master/test_eval_offline.py#L4
+    # vals = [0] * 41
+    # sum = 0
+    # for i in range(1, 41):
+    #     sum += vals[i]
+    # average = sum / 40.0
 
     @property
     def mp(self):
@@ -729,8 +878,8 @@ class Metric(SimpleClass):
         return [self.mp, self.mr, self.map50, self.map]
 
     def class_result(self, i):
-        """Class-aware result, return p[i], r[i], ap50[i], ap[i]."""
-        return self.p[i], self.r[i], self.ap50[i], self.ap[i]
+        """Class-aware result, return p[i], r[i], ap50[i], ap70[i], ap[i]."""
+        return self.p[i], self.r[i], self.ap50[i], self.ap70[i], self.ap[i]
 
     @property
     def maps(self):
@@ -1232,7 +1381,20 @@ class OBBMetrics(SimpleClass):
 
     def process(self, tp, conf, pred_cls, target_cls):
         """Process predicted results for object detection and update metrics."""
-        results = ap_per_class(
+        # results = ap_per_class(
+        #    tp,
+        #    conf,
+        #    pred_cls,
+        #    target_cls,
+        #    plot=self.plot,
+        #    save_dir=self.save_dir,
+        #    names=self.names,
+        #    on_plot=self.on_plot,
+        # )[2:]
+        # self.box.nc = len(self.names)
+        # self.box.update(results)
+
+        results = ap_per_class_kitti( # new method for calculating AP with new interp of def compute_ap_kitti().
             tp,
             conf,
             pred_cls,
@@ -1241,9 +1403,9 @@ class OBBMetrics(SimpleClass):
             save_dir=self.save_dir,
             names=self.names,
             on_plot=self.on_plot,
-        )[2:]
+        )[2:] # return from p to prec_values (excluding tp, fp)
         self.box.nc = len(self.names)
-        self.box.update(results)
+        self.box.update(results) # update the Metric() object
 
     @property
     def keys(self):
