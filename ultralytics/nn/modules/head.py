@@ -31,12 +31,15 @@ class Detect(nn.Module):
     strides = torch.empty(0)  # init
     legacy = False  # backward compatibility for v3/v5/v8/v9 models
 
-    def __init__(self, nc=80, ch=()):
+    def __init__(self, nc=80, reg_max=16, ch=()):
         """Initializes the YOLO detection layer with specified number of classes and channels."""
         super().__init__()
         self.nc = nc  # number of classes
         self.nl = len(ch)  # number of detection layers
-        self.reg_max = 16  # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
+	    # TODO: 22.12.2024 Find the best reg_max for my dataset, observe the dfl loss, https://github.com/ultralytics/ultralytics/issues/3684#issuecomment-2560481103
+        print('class Detect: value of ch[0]:', ch[0]) # channel value for optimal reg_max param
+        self.reg_max = 16 if reg_max is None else reg_max  # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
+        print('class Detect: self.reg_max:', self.reg_max)
         self.no = nc + self.reg_max * 4  # number of outputs per anchor
         self.stride = torch.zeros(self.nl)  # strides computed during build
         c2, c3 = max((16, ch[0] // 4, self.reg_max * 4)), max(ch[0], min(self.nc, 100))  # channels
@@ -175,9 +178,9 @@ class Detect(nn.Module):
 class Segment(Detect):
     """YOLO Segment head for segmentation models."""
 
-    def __init__(self, nc=80, nm=32, npr=256, ch=()):
+    def __init__(self, nc=80, nm=32, npr=256, reg_max=16, ch=()):
         """Initialize the YOLO model attributes such as the number of masks, prototypes, and the convolution layers."""
-        super().__init__(nc, ch)
+        super().__init__(nc, reg_max, ch)
         self.nm = nm  # number of masks
         self.npr = npr  # number of protos
         self.proto = Proto(ch[0], self.npr, self.nm)  # protos
@@ -200,9 +203,9 @@ class Segment(Detect):
 class OBB(Detect):
     """YOLO OBB detection head for detection with rotation models."""
 
-    def __init__(self, nc=80, ne=1, ch=()):
+    def __init__(self, nc=80, ne=1, reg_max=16,  ch=()):
         """Initialize OBB with number of classes `nc` and layer channels `ch`."""
-        super().__init__(nc, ch)
+        super().__init__(nc, reg_max, ch)
         self.ne = ne  # number of extra parameters
 
         c4 = max(ch[0] // 4, self.ne)
@@ -230,9 +233,9 @@ class OBB(Detect):
 class Pose(Detect):
     """YOLO Pose head for keypoints models."""
 
-    def __init__(self, nc=80, kpt_shape=(17, 3), ch=()):
+    def __init__(self, nc=80, reg_max=16, kpt_shape=(17, 3), ch=()):
         """Initialize YOLO network with default parameters and Convolutional Layers."""
-        super().__init__(nc, ch)
+        super().__init__(nc, reg_max, ch)
         self.kpt_shape = kpt_shape  # number of keypoints, number of dims (2 for x,y or 3 for x,y,visible)
         self.nk = kpt_shape[0] * kpt_shape[1]  # number of keypoints total
 

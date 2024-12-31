@@ -300,7 +300,7 @@ class BaseModel(nn.Module):
 class DetectionModel(BaseModel):
     """YOLOv8 detection model."""
 
-    def __init__(self, cfg="yolov8n.yaml", ch=3, nc=None, verbose=True):  # model, input channels, number of classes
+    def __init__(self, cfg="yolov8n.yaml", ch=3, nc=None, reg_max=None, verbose=True):  # model, input channels, number of classes
         """Initialize the YOLOv8 detection model with the given config and parameters."""
         super().__init__()
         self.yaml = cfg if isinstance(cfg, dict) else yaml_model_load(cfg)  # cfg dict
@@ -316,7 +316,7 @@ class DetectionModel(BaseModel):
         if nc and nc != self.yaml["nc"]:
             LOGGER.info(f"Overriding model.yaml nc={self.yaml['nc']} with nc={nc}")
             self.yaml["nc"] = nc  # override YAML value
-        self.model, self.save = parse_model(deepcopy(self.yaml), ch=ch, verbose=verbose)  # model, savelist
+        self.model, self.save = parse_model(deepcopy(self.yaml), ch=ch, reg_max=reg_max, verbose=verbose)  # model, savelist
         self.names = {i: f"{i}" for i in range(self.yaml["nc"])}  # default names dict
         self.inplace = self.yaml.get("inplace", True)
         self.end2end = getattr(self.model[-1], "end2end", False)
@@ -392,9 +392,9 @@ class DetectionModel(BaseModel):
 class OBBModel(DetectionModel):
     """YOLOv8 Oriented Bounding Box (OBB) model."""
 
-    def __init__(self, cfg="yolov8n-obb.yaml", ch=3, nc=None, verbose=True):
+    def __init__(self, cfg="yolov8n-obb.yaml", ch=3, nc=None, reg_max=None, verbose=True):
         """Initialize YOLOv8 OBB model with given config and parameters."""
-        super().__init__(cfg=cfg, ch=ch, nc=nc, verbose=verbose)
+        super().__init__(cfg=cfg, ch=ch, nc=nc, reg_max=reg_max, verbose=verbose)
 
     def init_criterion(self):
         """Initialize the loss criterion for the model."""
@@ -404,9 +404,9 @@ class OBBModel(DetectionModel):
 class SegmentationModel(DetectionModel):
     """YOLOv8 segmentation model."""
 
-    def __init__(self, cfg="yolov8n-seg.yaml", ch=3, nc=None, verbose=True):
+    def __init__(self, cfg="yolov8n-seg.yaml", ch=3, nc=None, reg_max=None,  verbose=True):
         """Initialize YOLOv8 segmentation model with given config and parameters."""
-        super().__init__(cfg=cfg, ch=ch, nc=nc, verbose=verbose)
+        super().__init__(cfg=cfg, ch=ch, nc=nc, reg_max=reg_max, verbose=verbose)
 
     def init_criterion(self):
         """Initialize the loss criterion for the SegmentationModel."""
@@ -931,14 +931,19 @@ def attempt_load_one_weight(weight, device=None, inplace=True, fuse=False):
     return model, ckpt
 
 
-def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
+def parse_model(d, ch, nc=None, reg_max=None, verbose=True):  # model_dict, input_channels(3)
     """Parse a YOLO model.yaml dictionary into a PyTorch model."""
     import ast
 
     # Args
     legacy = True  # backward compatibility for v3/v5/v8/v9 models
     max_channels = float("inf")
-    nc, act, scales = (d.get(x) for x in ("nc", "activation", "scales"))
+    #nc, act, scales = (d.get(x) for x in ("nc", "activation", "scales"))
+    nc_tmp, act, scales, reg_max_tmp = (d.get(x) for x in ("nc", "activation", "scales", "reg_max"))
+    if nc is None:
+        nc = nc_tmp
+    if reg_max is None:
+        reg_max = reg_max_tmp
     depth, width, kpt_shape = (d.get(x, 1.0) for x in ("depth_multiple", "width_multiple", "kpt_shape"))
     if scales:
         scale = d.get("scale")
@@ -1045,6 +1050,8 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
         elif m in {Detect, WorldDetect, Segment, Pose, OBB, ImagePoolingAttn, v10Detect}:
+            if reg_max is None:
+                args.append(reg_max)
             args.append([ch[x] for x in f])
             if m is Segment:
                 args[2] = make_divisible(min(args[2], max_channels) * width, 8)
@@ -1085,6 +1092,7 @@ def yaml_model_load(path):
 
     unified_path = re.sub(r"(\d+)([nslmx])(.+)?$", r"\1\3", str(path))  # i.e. yolov8x.yaml -> yolov8.yaml
     yaml_file = check_yaml(unified_path, hard=False) or check_yaml(path)
+    print(f'loaded yaml from:', yaml_file)
     d = yaml_load(yaml_file)  # model dict
     d["scale"] = guess_model_scale(path)
     d["yaml_file"] = str(path)

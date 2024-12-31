@@ -83,6 +83,8 @@ class Model(nn.Module):
         self,
         model: Union[str, Path] = "yolo11n.pt",
         task: str = None,
+        nc: int = None,
+        reg_max: int = None,
         verbose: bool = False,
     ) -> None:
         """
@@ -141,9 +143,9 @@ class Model(nn.Module):
 
         # Load or create new YOLO model
         if Path(model).suffix in {".yaml", ".yml"}:
-            self._new(model, task=task, verbose=verbose)
+            self._new(model, task=task, nc=nc, reg_max=reg_max, verbose=verbose)
         else:
-            self._load(model, task=task)
+            self._load(model, task=task) # for loading from chkpt or weights
 
         # Delete super().training for accessing self.model.training
         del self.training
@@ -226,7 +228,7 @@ class Model(nn.Module):
         """
         return model.startswith(f"{HUB_WEB_ROOT}/models/")
 
-    def _new(self, cfg: str, task=None, model=None, verbose=False) -> None:
+    def _new(self, cfg: str, task=None, model=None, nc=None, reg_max=None, verbose=False) -> None:
         """
         Initializes a new model and infers the task type from the model definitions.
 
@@ -252,12 +254,13 @@ class Model(nn.Module):
         cfg_dict = yaml_model_load(cfg)
         self.cfg = cfg
         self.task = task or guess_model_task(cfg_dict)
-        self.model = (model or self._smart_load("model"))(cfg_dict, verbose=verbose and RANK == -1)  # build model
+        self.model = (model or self._smart_load("model"))(cfg_dict, nc=nc, reg_max=reg_max, verbose=verbose and RANK == -1)  # build model
         self.overrides["model"] = self.cfg
         self.overrides["task"] = self.task
 
         # Below added to allow export from YAMLs
         self.model.args = {**DEFAULT_CFG_DICT, **self.overrides}  # combine default and model args (prefer model args)
+        print('class Model: arguments for model:', self.overrides)
         self.model.task = self.task
         self.model_name = cfg
 
