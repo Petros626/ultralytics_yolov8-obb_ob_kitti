@@ -547,8 +547,19 @@ def xyxyxyxy2xywhr(x):
     rboxes = []
     for pts in points:
         # NOTE: Use cv2.minAreaRect to get accurate xywhr,
-        # especially some objects are cut off by augmentations in dataloader.
+        # especially some objects are cut off by augmentations in dataloader. Developer should keep in mind 
+        # that the returned RotatedRect can contain negative indices when data is close to the containing Mat element boundary.
+        # NOTE: https://mmrotate.readthedocs.io/en/latest/intro.html
         (cx, cy), (w, h), angle = cv2.minAreaRect(pts)
+	    # TODO: Test this two different approaches
+        # 21.12.2024: 0° → 90° and Width/Height switch (tested from user: dfl_loss lower)
+        #if angle == -0.0 or angle == 0.0: # NOTE: https://github.com/ultralytics/ultralytics/issues/15771
+        #    angle = 90
+        #    w, h = h, w
+        # 23.12.2024: 90° → 0° and Width/Height switch (tested from user: mAP higher)
+        # if angle == 90: NOTE: https://github.com/ultralytics/ultralytics/pull/16237
+        #   angle = 0
+        #   w, h = h, w
         rboxes.append([cx, cy, w, h, angle / 180 * np.pi])
     return torch.tensor(rboxes, device=x.device, dtype=x.dtype) if is_torch else np.asarray(rboxes)
 
@@ -774,7 +785,7 @@ def scale_coords(img1_shape, coords, img0_shape, ratio_pad=None, normalize=False
 
 def regularize_rboxes(rboxes):
     """
-    Regularize rotated boxes in range [0, pi/2].
+    Regularize rotated boxes in range [0, pi] (not default [0, pi/2]).
 
     Args:
         rboxes (torch.Tensor): Input boxes of shape(N, 5) in xywhr format.
@@ -786,7 +797,9 @@ def regularize_rboxes(rboxes):
     # Swap edge and angle if h >= w
     w_ = torch.where(w > h, w, h)
     h_ = torch.where(w > h, h, w)
-    t = torch.where(w > h, t, t + math.pi / 2) % math.pi
+    t = torch.where(w > h, t, t + math.pi / 2) % math.pi # [0...pi]
+    # 22.12.2024 NOTE: https://github.com/ultralytics/ultralytics/issues/8930 ; https://github.com/ultralytics/ultralytics/issues/8930#issuecomment-2558692356
+    # t = (torch.where(w > h, t, t + math.pi / 2) + math.pi) % (math.pi / 2) # [0, pi/2]
     return torch.stack([x, y, w_, h_, t], dim=-1)  # regularized boxes
 
 
