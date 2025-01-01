@@ -552,8 +552,8 @@ def compute_ap_kitti(recall, precision):
 
    # Calculate AP using 40 recall positions (KITTI standard)
    # NOTE: https://dl.acm.org/doi/10.1016/j.patrec.2022.04.028
-    x = np.linspace(0, 1, 40) # 40-point interpolated AP (KITTI)
-    prec_at_recall = np.interp(x, mrec, mpre)
+    x = np.linspace(0, 1, 40) 
+    prec_at_recall = np.interp(x, mrec, mpre) # 40-point interpolated AP (KITTI)
     ap = np.mean(prec_at_recall) # Mean
 
     return ap, mpre, mrec
@@ -790,7 +790,7 @@ class Metric(SimpleClass):
         return self.all_ap[:, 4] if len(self.all_ap) else 0.0
 
     @property
-    def ap(self): # # Note: Default this value represents the AP for one specific class, and not overall classes (mAP).
+    def ap(self): # Note: Default this value represents the AP for one specific class, and not overall classes (mAP).
         """
         Returns the Average Precision (AP) at an IoU threshold of 0.5-0.95 for all classes.
 
@@ -800,7 +800,7 @@ class Metric(SimpleClass):
         return self.all_ap.mean(1) if len(self.all_ap) else []
 
     @property
-    def ap_custom(self): # TODO: rethink about Average Precision columnn BEVDetNet
+    def ap_custom(self): # TODO: rethink about Average Precision columnn of paper BEVDetNet
         """
         Returns the Average Precision (AP) at an IoU threshold of 0.5 & 0.7 for all classes.
 
