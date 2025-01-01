@@ -119,7 +119,10 @@ def verify_image_label(args):
         if os.path.isfile(lb_file):
             nf = 1  # label found
             with open(lb_file) as f:
-                lb = [x.split() for x in f.read().strip().splitlines() if len(x)]
+                lb = [x.split() for x in f.read().strip().splitlines() if len(x)] # default read all values from labels
+                # TODO: save the difficultiesin a tensor or pass it to function
+                # 01.01.2025 keep only the first 9 values, NOTE: use 10-12 for validation
+                lb = [x[:9] for x in lb] 
                 if any(len(x) > 6 for x in lb) and (not keypoint):  # is segment
                     classes = np.array([x[0] for x in lb], dtype=np.float32)
                     segments = [np.array(x[1:], dtype=np.float32).reshape(-1, 2) for x in lb]  # (cls, xy1...)
