@@ -294,7 +294,7 @@ def check_pip_update_available():
             latest = check_latest_pypi_version()
             if check_version(__version__, f"<{latest}"):  # check if current version is < latest version
                 LOGGER.info(
-                    f"New https://pypi.org/project/ultralytics/{latest} available 😃 "
+                    f"\nNew https://pypi.org/project/ultralytics/{latest} available 😃 "
                     f"Update with 'pip install -U ultralytics'"
                 )
                 return True
