@@ -2,7 +2,7 @@
 # YOLOv8 Oriented Bounding Boxes (OBB) model with P3-P5 outputs. For Usage examples see https://docs.ultralytics.com/tasks/detect
 
 # Parameters
-nc: 3 # number of classes (KITTI: Car, Pedestrian, Cyclist)
+nc: 4 # number of classes (KITTI: None, Car, Pedestrian, Cyclist)
 reg_max: 16 # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
 scales: # model compound scaling constants, i.e. 'model=yolov8n.yaml' will call yolov8.yaml with scale 'n'
   # [depth, width, max_channels]
