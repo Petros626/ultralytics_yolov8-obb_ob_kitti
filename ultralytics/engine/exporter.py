@@ -919,6 +919,7 @@ class Exporter:
         del self.model
         gc.collect()
         torch.cuda.empty_cache()
+        print('class Exporter: clear CUDA cache.')
 
         # Write file
         build = builder.build_serialized_network if is_trt10 else builder.build_engine
