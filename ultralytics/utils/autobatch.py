@@ -104,3 +104,4 @@ def autobatch(model, imgsz=640, fraction=0.60, batch_size=DEFAULT_CFG.batch, max
         return batch_size
     finally:
         torch.cuda.empty_cache()
+        print('def autobatch: clear CUDA cache.')
