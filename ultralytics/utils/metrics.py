@@ -543,6 +543,8 @@ def compute_ap_kitti(recall, precision):
         (np.ndarray): Precision envelope curve
         (np.ndarray): Modified recall curve
     """
+    print('\nNew compute_ap_kitti method (40 recall points) is being used.')
+
     # Append sentinel values
     mrec = np.concatenate(([0.0], recall, [1.0]))
     mpre = np.concatenate(([1.0], precision, [0.0]))
@@ -666,7 +668,8 @@ def ap_per_class_kitti(tp, conf, pred_cls, target_cls, plot=False, on_plot=None,
     Returns:
         Same as original function but with modified AP calculation using 40 recall positions.
     """
-    check_method = False
+    print('\nNew ap_per_class_kitti method (40 recall points) is being used.')
+    #check_method = False
 
     # Sort by objectness
     i = np.argsort(-conf)
@@ -703,9 +706,9 @@ def ap_per_class_kitti(tp, conf, pred_cls, target_cls, plot=False, on_plot=None,
 	    # AP from recall-precision curve
         for j in range(tp.shape[1]):
             ap[ci, j], mpre, mrec = compute_ap_kitti(recall[:, j], precision[:, j]) # average over 40 recall positions
-            if not check_method:
-                print('New AP calculation method (40 recall points) is being used.')
-                check_method = True
+            #if not check_method:
+            #    print('\nNew AP calculation method (40 recall points) is being used.')
+            #7    check_method = True
             if j == 0:
                 prec_values.append(np.interp(x, mrec, mpre))  # precision at mAP@0.5
 
@@ -773,7 +776,7 @@ class Metric(SimpleClass):
             (np.ndarray, list): Array of shape (nc,) with AP50 values per class, or an empty list if not available.
         """
         # [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
-        print(f'class Metric: used AP for ap50: {self.all_ap[:, 0]}')
+        print(f'class Metric: using ap50')
         return self.all_ap[:, 0] if len(self.all_ap) else []
 
     # 25.12.2024 Average Precision for IoU 0.7.
@@ -878,8 +881,8 @@ class Metric(SimpleClass):
         return [self.mp, self.mr, self.map50, self.map]
 
     def class_result(self, i):
-        """Class-aware result, return p[i], r[i], ap50[i], ap70[i], ap[i]."""
-        return self.p[i], self.r[i], self.ap50[i], self.ap70[i], self.ap[i]
+        """Class-aware result, return p[i], r[i], ap50[i], ap[i]."""
+        return self.p[i], self.r[i], self.ap50[i], self.ap70[i], self.ap[i] # TODO: extend with ap70, but how?
 
     @property
     def maps(self):
@@ -999,7 +1002,7 @@ class DetMetrics(SimpleClass):
     @property
     def keys(self):
         """Returns a list of keys for accessing specific metrics."""
-        return ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP50-95(B)"]
+        return ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP50-95(B)"] 
 
     def mean_results(self):
         """Calculate mean of detected objects & return precision, recall, mAP50, and mAP50-95."""
@@ -1410,8 +1413,10 @@ class OBBMetrics(SimpleClass):
     @property
     def keys(self):
         """Returns a list of keys for accessing specific metrics."""
-        return ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP50-95(B)"]
-
+        #return ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP50-95(B)"]
+        default_keys = ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP50-95(B)"] # default metrics for training job
+        return default_keys
+       
     def mean_results(self):
         """Calculate mean of detected objects & return precision, recall, mAP50, and mAP50-95."""
         return self.box.mean_results()
