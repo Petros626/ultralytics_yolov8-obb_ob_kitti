@@ -245,16 +245,14 @@ class BaseTrainer:
         )
         always_freeze_names = [".dfl"]  # always freeze these layers
         freeze_layer_names = [f"model.{x}." for x in freeze_list] + always_freeze_names
-        #print(freeze_list)
-        #print(always_freeze_names)
+        
         for k, v in self.model.named_parameters():
             # v.register_hook(lambda x: torch.nan_to_num(x))  # NaN to 0 (commented for erratic training results)
             if any(x in k for x in freeze_layer_names):
                 LOGGER.info(f"Freezing layer '{k}'") # NOTE: https://github.com/ultralytics/ultralytics/issues/5052#issuecomment-1980009488
-                LOGGER.info(f"Note: It looks like DFL layer in the implementation uses a convolution layer to perform the operation. 
-                            The weights for the layer are initialized statically (since it's essentially an integral of some sort) and 
-                            aren't supposed to be updated during training, so freezing DFL layers seems to be by design: 
-                            https://github.com/ultralytics/ultralytics/issues/5052#issuecomment-1980009488.")
+                print("Note: It looks like DFL layer in the implementation uses a convolution layer to perform the operation.\n"
+                      "The weights for the layer are initialized statically (since it's essentially an integral of some sort)\n"
+                      "and aren't supposed to be updated during training, so freezing DFL layers seems to be by design: https://github.com/ultralytics/ultralytics/issues/5052#issuecomment-1980009488.\n")
                 v.requires_grad = False
             elif not v.requires_grad and v.dtype.is_floating_point:  # only floating point Tensor can require gradients
                 LOGGER.info(
@@ -296,7 +294,8 @@ class BaseTrainer:
                 self.testset, batch_size=batch_size if self.args.task == "obb" else batch_size * 2, rank=-1, mode="val"
             )
             self.validator = self.get_validator()
-            metric_keys = self.validator.metrics.keys + self.label_loss_items(prefix="val")
+            metric_keys = self.validator.metrics.keys + self.label_loss_items(prefix="val") # box,cls,dfl loss
+            print(f'class BaseTrainer: used metrics {metric_keys}')
             self.metrics = dict(zip(metric_keys, [0] * len(metric_keys)))
             self.ema = ModelEMA(self.model)
             if self.args.plots:
@@ -508,6 +507,7 @@ class BaseTrainer:
             return
         else:
             torch.cuda.empty_cache()
+            print('class BaseTrainer: clear CUDA cache.')
 
     def read_results_csv(self):
         """Read results.csv into a dict using pandas."""
