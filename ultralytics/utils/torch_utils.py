@@ -635,6 +635,7 @@ def cuda_memory_usage(device=None):
     cuda_info = dict(memory=0)
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+        print('def cuda_memory_usage: clear CUDA cache.')
         try:
             yield cuda_info
         finally:
@@ -666,6 +667,7 @@ def profile(input, ops, n=10, device=None, max_num_obj=0):
     )
     gc.collect()  # attempt to free unused memory
     torch.cuda.empty_cache()
+    print('def profile: clear CUDA cache.')
     for x in input if isinstance(input, list) else [input]:
         x = x.to(device)
         x.requires_grad = True
@@ -714,6 +716,7 @@ def profile(input, ops, n=10, device=None, max_num_obj=0):
             finally:
                 gc.collect()  # attempt to free unused memory
                 torch.cuda.empty_cache()
+                print('def profile: clear CUDA cache.')
     return results
 
 
