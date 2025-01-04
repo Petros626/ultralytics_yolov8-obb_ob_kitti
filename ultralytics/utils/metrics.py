@@ -554,9 +554,16 @@ def compute_ap_kitti(recall, precision):
 
    # Calculate AP using 40 recall positions (KITTI standard)
    # NOTE: https://dl.acm.org/doi/10.1016/j.patrec.2022.04.028
-    x = np.linspace(0, 1, 40) 
-    prec_at_recall = np.interp(x, mrec, mpre) # 40-point interpolated AP (KITTI)
-    ap = np.mean(prec_at_recall) # Mean
+   # https://github.com/Sliverk/hybridAveragePrecision/blob/c52ae2b61de92c1559e83f5176e4d762bb0dc7ff/utils/eval.py#L561
+    interP = np.linspace(1/40, 1, num=40, endpoint=True)
+
+    # Interpolate precision values at the recall points
+    prec_at_recall = np.interp(interP, mrec, mpre) # 40-point interpolated AP (KITTI)
+
+    # Computer AP as the mean of the maximum precision values
+    # AP = (1/40) *  Σ_{i=1}^{40} max precision_j
+    # where max precision_j is the maximum precision at recall >= r_i
+    ap = np.mean([np.max(prec_at_recall[i:]) for i in range(40)]) 
 
     return ap, mpre, mrec
 
@@ -705,7 +712,7 @@ def ap_per_class_kitti(tp, conf, pred_cls, target_cls, plot=False, on_plot=None,
 
 	    # AP from recall-precision curve
         for j in range(tp.shape[1]):
-            ap[ci, j], mpre, mrec = compute_ap_kitti(recall[:, j], precision[:, j]) # average over 40 recall positions
+            ap[ci, j], mpre, mrec = compute_ap_kitti(recall[:, j], precision[:, j]) # using the new 40 recall positions
             #if not check_method:
             #    print('\nNew AP calculation method (40 recall points) is being used.')
             #7    check_method = True
@@ -882,7 +889,7 @@ class Metric(SimpleClass):
 
     def class_result(self, i):
         """Class-aware result, return p[i], r[i], ap50[i], ap[i]."""
-        return self.p[i], self.r[i], self.ap50[i], self.ap70[i], self.ap[i] # TODO: extend with ap70, but how?
+        return self.p[i], self.r[i], self.ap50[i], self.ap70[i], self.ap[i] # 04.01.2025 add method ap70
 
     @property
     def maps(self):
@@ -1408,7 +1415,7 @@ class OBBMetrics(SimpleClass):
             on_plot=self.on_plot,
         )[2:] # return from p to prec_values (excluding tp, fp)
         self.box.nc = len(self.names)
-        self.box.update(results) # update the Metric() object
+        self.box.update(results) # update the Metric() object with p, r, f1, ap, cls, p_curve, r_curve, f1_curve, x, prec_values
 
     @property
     def keys(self):
@@ -1423,7 +1430,7 @@ class OBBMetrics(SimpleClass):
 
     def class_result(self, i):
         """Return the result of evaluating the performance of an object detection model on a specific class."""
-        return self.box.class_result(i)
+        return self.box.class_result(i) # extended with method ap70
 
     @property
     def maps(self):
