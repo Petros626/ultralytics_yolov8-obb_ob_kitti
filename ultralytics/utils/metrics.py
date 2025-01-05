@@ -655,6 +655,9 @@ def ap_per_class(
     fp = (tp / (p + eps) - tp).round()  # false positives
     return tp, fp, p, r, f1, ap, unique_classes.astype(int), p_curve, r_curve, f1_curve, x, prec_values
 
+# https://github.com/open-mmlab/mmdetection3d/blob/main/mmdet3d/evaluation/functional/kitti_utils/eval.py#L662
+# https://github.com/open-mmlab/mmdetection3d/blob/main/tests/test_evaluation/test_functional/test_kitti_eval.py#L202
+# https://github.com/open-mmlab/mmeval/blob/5b4ef8d0b564073848dea18513cea4bf1f25c65e/mmeval/metrics/average_precision.py#L168
 def ap_per_class_kitti(tp, conf, pred_cls, target_cls, plot=False, on_plot=None, save_dir=Path(), names={}, eps=1e-16, prefix=""):
     """
     Computes the average precision per class for object detection evaluation using 40 recall positions
@@ -796,7 +799,7 @@ class Metric(SimpleClass):
         (np.array, list): Array of shape (nc,) with AP70 values per class, or an empty list if not available.
         """
         # [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
-        print(f'class Metric: used AP for ap70: {self.all_ap[:, 4]}')
+        print(f'class Metric: using ap70')
         return self.all_ap[:, 4] if len(self.all_ap) else 0.0
 
     @property
@@ -1420,7 +1423,7 @@ class OBBMetrics(SimpleClass):
     @property
     def keys(self):
         """Returns a list of keys for accessing specific metrics."""
-        #return ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP50-95(B)"]
+        #return ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP50-95(B)"] # default
         default_keys = ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP50-95(B)"] # default metrics for training job
         return default_keys
        
