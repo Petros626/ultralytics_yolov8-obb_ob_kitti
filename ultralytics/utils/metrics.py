@@ -786,7 +786,7 @@ class Metric(SimpleClass):
             (np.ndarray, list): Array of shape (nc,) with AP50 values per class, or an empty list if not available.
         """
         # [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
-        print(f'class Metric: using ap50')
+        print('class Metric: using ap50')
         return self.all_ap[:, 0] if len(self.all_ap) else []
 
     # 25.12.2024 Average Precision for IoU 0.7.
@@ -799,8 +799,8 @@ class Metric(SimpleClass):
         (np.array, list): Array of shape (nc,) with AP70 values per class, or an empty list if not available.
         """
         # [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
-        print(f'class Metric: using ap70')
-        return self.all_ap[:, 4] if len(self.all_ap) else 0.0
+        print('class Metric: using ap70')
+        return self.all_ap[:, 4] if len(self.all_ap) else []
 
     @property
     def ap(self): # Note: Default this value represents the AP for one specific class, and not overall classes (mAP).
@@ -892,7 +892,7 @@ class Metric(SimpleClass):
 
     def class_result(self, i):
         """Class-aware result, return p[i], r[i], ap50[i], ap[i]."""
-        return self.p[i], self.r[i], self.ap50[i], self.ap70[i], self.ap[i] # 04.01.2025 add method ap70
+        return self.p[i], self.r[i], self.ap50[i], self.ap70[i], self.ap[i] # TODO: add method ap70
 
     @property
     def maps(self):
