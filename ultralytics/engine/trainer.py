@@ -250,9 +250,10 @@ class BaseTrainer:
             # v.register_hook(lambda x: torch.nan_to_num(x))  # NaN to 0 (commented for erratic training results)
             if any(x in k for x in freeze_layer_names):
                 LOGGER.info(f"Freezing layer '{k}'") # NOTE: https://github.com/ultralytics/ultralytics/issues/5052#issuecomment-1980009488
-                print("Note Freezing layer: It looks like DFL layer in the implementation uses a convolution layer to perform the operation.\n"
+                print("NOTE Freezing layer: It looks like DFL layer in the implementation uses a convolution layer to perform the operation.\n"
                       "The weights for the layer are initialized statically (since it's essentially an integral of some sort)\n"
                       "and aren't supposed to be updated during training, so freezing DFL layers seems to be by design: https://github.com/ultralytics/ultralytics/issues/5052#issuecomment-1980009488.\n")
+                
                 v.requires_grad = False
             elif not v.requires_grad and v.dtype.is_floating_point:  # only floating point Tensor can require gradients
                 LOGGER.info(
