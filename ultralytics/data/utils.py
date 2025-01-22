@@ -120,7 +120,7 @@ def verify_image_label(args):
             nf = 1  # label found
             with open(lb_file) as f:
                 lb = [x.split() for x in f.read().strip().splitlines() if len(x)] # default read all values from labels
-                # TODO: save the difficultiesin a tensor or pass it to function
+                # TODO: save the difficulties in a tensor or pass it to function
                 # 01.01.2025 keep only the first 9 values, NOTE: use 10-12 for validation
                 lb = [x[:9] for x in lb] 
                 if any(len(x) > 6 for x in lb) and (not keypoint):  # is segment
@@ -154,9 +154,11 @@ def verify_image_label(args):
             else:
                 ne = 1  # label empty
                 lb = np.zeros((0, (5 + nkpt * ndim) if keypoint else 5), dtype=np.float32)
+                print(f"Background-Label: {im_file} (just empty)")  # DEBUG
         else:
             nm = 1  # label missing
             lb = np.zeros((0, (5 + nkpt * ndim) if keypoints else 5), dtype=np.float32)
+            print(f"Background-Label: {im_file} (missing)")  # DEBUG
         if keypoint:
             keypoints = lb[:, 5:].reshape(-1, nkpt, ndim)
             if ndim == 2:
