@@ -543,7 +543,7 @@ def compute_ap_kitti(recall, precision):
         (np.ndarray): Precision envelope curve
         (np.ndarray): Modified recall curve
     """
-    print('\nNew compute_ap_kitti method (40 recall points) is being used.')
+    #print('\nNew compute_ap_kitti method (40 recall points) is being used.') # DEBUG
 
     # Append sentinel values
     mrec = np.concatenate(([0.0], recall, [1.0]))
