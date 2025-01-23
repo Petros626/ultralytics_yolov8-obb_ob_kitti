@@ -176,3 +176,7 @@ calibration_*.npy
 *.png
 bev_[0-9]*_[0-9]*.txt
 bev_val_[0-9]*.txt
+
+# Repo backup
+*.tar.gz
+*backup.yml
