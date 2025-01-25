@@ -87,7 +87,7 @@ class DetectionValidator(BaseValidator):
 
     def get_desc(self):
         """Return a formatted string summarizing class metrics of YOLO model."""
-        return ("%22s" + "%11s" * 6) % ("Class", "Images", "Instances", "Box(P", "R", "mAP50", "mAP50-95)")
+        return ("%22s" + "%11s" * 7) % ("Class", "Images", "Instances", "Box(P", "R", "mAP50", "mAP70", "mAP50-95)") # 25.01.25 Updated by mAP70
 
     def postprocess(self, preds):
         """Apply Non-maximum suppression to prediction outputs."""
@@ -186,9 +186,10 @@ class DetectionValidator(BaseValidator):
             self.metrics.process(**stats)
         return self.metrics.results_dict
 
+    # 25.01.25 Updated by mAP70
     def print_results(self):
         """Prints training/validation set metrics per class."""
-        pf = "%22s" + "%11i" * 2 + "%11.3g" * len(self.metrics.keys)  # print format
+        pf = "%22s" + "%11i" * 2 + "%11.3g" * len(self.metrics.keys)  # print format, (p, r, map50, map70, map50-95)
         LOGGER.info(pf % ("all", self.seen, self.nt_per_class.sum(), *self.metrics.mean_results()))
         if self.nt_per_class.sum() == 0:
             LOGGER.warning(f"WARNING ⚠️ no labels found in {self.args.task} set, can not compute metrics without labels")
