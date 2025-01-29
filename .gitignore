@@ -180,3 +180,8 @@ bev_val_[0-9]*.txt
 # Repo backup
 *.tar.gz
 *backup.yml
+
+# General files
+*.yaml
+*.cache
+*.csv
