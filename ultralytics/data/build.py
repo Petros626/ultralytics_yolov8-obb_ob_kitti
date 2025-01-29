@@ -47,6 +47,16 @@ class InfiniteDataLoader(dataloader.DataLoader):
         for _ in range(len(self)):
             yield next(self.iterator)
 
+    # 27.01.2025 Fix random dataloader freezes, PR #18697
+    # Fix dataloader cleanup error with no workers, PR #18732
+    def __del__(self):
+        """Ensure that workers are terminated."""
+        if hasattr(self.iterator, "_workers"):
+            for w in self.iterator._workers:  # force terminate
+                if w.is_alive():
+                    w.terminate()
+            self.iterator._shutdown_workers()  # cleanup
+
     def reset(self):
         """
         Reset iterator.
