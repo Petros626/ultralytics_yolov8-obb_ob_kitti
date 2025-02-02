@@ -450,6 +450,7 @@ class Exporter:
             batch_size=batch,
         )
         n = len(dataset)
+        # Verify dataset >= batch size on INT8 export calibration, PR #18611
         if n < self.args.batch:
             raise ValueError(f"The calibration dataset ({n} images) must have at least as many images as the batch size ('batch={self.args.batch}').")
         elif n < 300:
