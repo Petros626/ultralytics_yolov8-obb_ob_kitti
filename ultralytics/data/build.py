@@ -49,13 +49,18 @@ class InfiniteDataLoader(dataloader.DataLoader):
 
     # 27.01.2025 Fix random dataloader freezes, PR #18697
     # Fix dataloader cleanup error with no workers, PR #18732
+    # 02.02.25 Catch and ignore exception in dataloader cleanup, PR #18772
     def __del__(self):
         """Ensure that workers are terminated."""
-        if hasattr(self.iterator, "_workers"):
+        try:
+            if not hasattr(self.iterator, "_workers"):
+                return
             for w in self.iterator._workers:  # force terminate
                 if w.is_alive():
                     w.terminate()
             self.iterator._shutdown_workers()  # cleanup
+        except Exception:
+            pass
 
     def reset(self):
         """
