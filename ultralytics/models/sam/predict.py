@@ -68,13 +68,14 @@ class Predictor(BasePredictor):
         set_prompts: Sets prompts for subsequent inference.
         reset_image: Resets the current image and its features.
         remove_small_regions: Removes small disconnected regions and holes from masks.
-
+    
+    # Fix broken examples in SAM Predictor docstrings, PR # 18665
     Examples:
         >>> predictor = Predictor()
         >>> predictor.setup_model(model_path="sam_model.pt")
         >>> predictor.set_image("image.jpg")
-        >>> masks, scores, boxes = predictor.generate()
-        >>> results = predictor.postprocess((masks, scores, boxes), im, orig_img)
+        >>> bboxes = [[100, 100, 200, 200]]
+        >>> results = predictor(bboxes=bboxes)
     """
 
     def __init__(self, cfg=DEFAULT_CFG, overrides=None, _callbacks=None):
@@ -186,12 +187,13 @@ class Predictor(BasePredictor):
             (np.ndarray): The output masks in shape (C, H, W), where C is the number of generated masks.
             (np.ndarray): An array of length C containing quality scores predicted by the model for each mask.
             (np.ndarray): Low-resolution logits of shape (C, H, W) for subsequent inference, where H=W=256.
-
+        
+        # Fix broken examples in SAM Predictor docstrings, PR # 18665
         Examples:
             >>> predictor = Predictor()
             >>> predictor.setup_model(model_path="sam_model.pt")
             >>> predictor.set_image("image.jpg")
-            >>> masks, scores, logits = predictor.inference(im, bboxes=[[0, 0, 100, 100]])
+            >>> results = predictor(bboxes=[[0, 0, 100, 100]])
         """
         # Override prompts if any stored in self.prompts
         bboxes = self.prompts.pop("bboxes", bboxes)
@@ -642,12 +644,13 @@ class SAM2Predictor(Predictor):
         set_image: Preprocesses and sets a single image for inference.
         get_im_features: Extracts and processes image features using SAM2's image encoder.
 
+    # Fix broken examples in SAM Predictor docstrings, PR # 18665
     Examples:
         >>> predictor = SAM2Predictor(cfg)
         >>> predictor.set_image("path/to/image.jpg")
         >>> bboxes = [[100, 100, 200, 200]]
-        >>> masks, scores, _ = predictor.prompt_inference(predictor.im, bboxes=bboxes)
-        >>> print(f"Predicted {len(masks)} masks with average score {scores.mean():.2f}")
+        >>> result = predictor(bboxes=bboxes)[0]
+        >>> print(f"Predicted {len(result.masks)} masks with average score {result.boxes.conf.mean():.2f}")
     """
 
     _bb_feat_sizes = [
@@ -690,12 +693,13 @@ class SAM2Predictor(Predictor):
             (np.ndarray): Output masks with shape (C, H, W), where C is the number of generated masks.
             (np.ndarray): Quality scores for each mask, with length C.
 
+        # Fix broken examples in SAM Predictor docstrings, PR # 18665
         Examples:
             >>> predictor = SAM2Predictor(cfg)
             >>> image = torch.rand(1, 3, 640, 640)
             >>> bboxes = [[100, 100, 200, 200]]
-            >>> masks, scores, logits = predictor.prompt_inference(image, bboxes=bboxes)
-            >>> print(f"Generated {masks.shape[0]} masks with average score {scores.mean():.2f}")
+            >>> result = predictor(image, bboxes=bboxes)[0]
+            >>> print(f"Generated {result.masks.shape[0]} masks with average score {result.boxes.conf.mean():.2f}")
 
         Notes:
             - The method supports batched inference for multiple objects when points or bboxes are provided.
@@ -1096,7 +1100,7 @@ class SAM2VideoPredictor(SAM2Predictor):
         # to `propagate_in_video_preflight`).
         consolidated_frame_inds = self.inference_state["consolidated_frame_inds"]
         for is_cond in {False, True}:
-            # Separately consolidate conditioning and non-conditioning temp outptus
+            # Separately consolidate conditioning and non-conditioning temp outputs
             storage_key = "cond_frame_outputs" if is_cond else "non_cond_frame_outputs"
             # Find all the frames that contain temporary outputs for any objects
             # (these should be the frames that have just received clicks for mask inputs
