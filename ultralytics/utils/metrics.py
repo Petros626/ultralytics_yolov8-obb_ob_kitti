@@ -684,7 +684,7 @@ def ap_per_class_kitti(tp, conf, pred_cls, target_cls, plot=False, on_plot=None,
     Returns:
         Same as original function but with modified AP calculation using 40 recall positions.
     """
-    print('\nNew ap_per_class_kitti method (40 recall points) is being used.')
+    #print('\nNew ap_per_class_kitti method (40 recall points) is being used.')
     #check_method = False
 
     # Sort by objectness
@@ -792,7 +792,7 @@ class Metric(SimpleClass):
             (np.ndarray, list): Array of shape (nc,) with AP50 values per class, or an empty list if not available.
         """
         # [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
-        print('class Metric: using ap50')
+        #print('class Metric: using ap50')
         return self.all_ap[:, 0] if len(self.all_ap) else []
 
     # 25.12.2024 Average Precision for IoU 0.7.
@@ -805,7 +805,7 @@ class Metric(SimpleClass):
         (np.array, list): Array of shape (nc,) with AP70 values per class, or an empty list if not available.
         """
         # [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
-        print('class Metric: using ap70')
+        #print('class Metric: using ap70')
         return self.all_ap[:, 4] if len(self.all_ap) else []
 
     @property
