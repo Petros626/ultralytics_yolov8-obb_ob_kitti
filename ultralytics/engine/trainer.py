@@ -509,7 +509,7 @@ class BaseTrainer:
             return
         else:
             torch.cuda.empty_cache()
-            print('class BaseTrainer: clear CUDA cache.')
+            print('\nclass BaseTrainer: clear CUDA cache.')
 
     def read_results_csv(self):
         """Read results.csv into a dict using pandas."""
