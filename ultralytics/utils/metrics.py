@@ -1032,7 +1032,7 @@ class DetMetrics(SimpleClass):
         return ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP70(B)", "metrics/mAP50-95(B)"] 
 
     def mean_results(self):
-        """Calculate mean of detected objects & return precision, recall, mAP50, and mAP50-95."""
+        """Calculate mean of detected objects & return precision, recall, mAP50, mAP70, and mAP50-95."""
         return self.box.mean_results()
 
     def class_result(self, i):
@@ -1445,7 +1445,7 @@ class OBBMetrics(SimpleClass):
         return default_keys
        
     def mean_results(self):
-        """Calculate mean of detected objects & return precision, recall, mAP50, and mAP50-95."""
+        """Calculate mean of detected objects & return precision, recall, mAP50, mAP70, and mAP50-95."""
         return self.box.mean_results()
 
     def class_result(self, i):
