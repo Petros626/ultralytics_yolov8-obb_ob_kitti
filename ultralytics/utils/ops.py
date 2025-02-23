@@ -59,7 +59,8 @@ class Profile(contextlib.ContextDecorator):
         """Get current time."""
         if self.cuda:
             torch.cuda.synchronize(self.device)
-        return time.time()
+        # Switch to perf_counter() for latency measurement
+        return time.perf_counter() # PR 19177
 
 
 def segment2box(segment, width=640, height=640):
