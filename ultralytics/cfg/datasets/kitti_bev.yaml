@@ -1,7 +1,7 @@
 # Vision meets Robotics: The KITTI Dataset 2013 https://www.cvlibs.net/datasets/kitti/ by Andreas Geiger and Philip Lenz and Christoph Stiller and Raquel Urtasun
 # Documentation: https://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=bev ; https://github.com/bostondiditeam/kitti
 # Example usage: yolo train data=kitti.yaml
-# /home/rlab10/ultralytics (parent folder)
+# /home/heizung1/ultralytics (parent folder)
 # ├── ultralytics
 # |   └── cfg
 # |        └── datasets
@@ -17,7 +17,7 @@
 #           ├── val
 
 # Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
-path: /home/rlab10/ultralytics_yolov8-obb_ob_kitti/ultralytics/cfg/datasets/kitti # dataset root dir
+path: /home/heizung1/ultralytics_yolov8-obb_ob_kitti/ultralytics/cfg/datasets/kitti # dataset root dir
 train: images/train/ # train images (relative to 'path') 18560 images (3712 training images extended with data augmentation)
 val: images/val/ # val images (relative to 'path') 3769 images
 test: # test images (optional)
