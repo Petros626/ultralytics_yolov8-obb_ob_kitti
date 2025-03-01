@@ -551,24 +551,31 @@ def compute_ap_kitti(recall, precision):
     """
     #print('\nNew compute_ap_kitti method (40 recall points) is being used.') # DEBUG
 
-    # Append sentinel values
+    # Append sentinel values (Recall=0 & Recall=1)
     mrec = np.concatenate(([0.0], recall, [1.0]))
     mpre = np.concatenate(([1.0], precision, [0.0]))
 
-    # Compute the precision envelope
+    # Compute the precision envelope: ρinterp(r)
     mpre = np.flip(np.maximum.accumulate(np.flip(mpre)))
 
-   # Calculate AP using 40 recall positions (KITTI standard)
-   # NOTE: https://dl.acm.org/doi/10.1016/j.patrec.2022.04.028
-   # https://github.com/Sliverk/hybridAveragePrecision/blob/c52ae2b61de92c1559e83f5176e4d762bb0dc7ff/utils/eval.py#L561
+    # Calculate AP using 40 recall positions (KITTI standard)
+    # sources: https://dl.acm.org/doi/10.1016/j.patrec.2022.04.028, https://arxiv.org/abs/1905.12365
+    # code: https://github.com/Sliverk/hybridAveragePrecision/blob/c52ae2b61de92c1559e83f5176e4d762bb0dc7ff/utils/eval.py#L561
+    # R = {1/40, 2/40, 3/40, ..., 1}
+    
     interP = np.linspace(1/40, 1, num=40, endpoint=True)
-
     # Interpolate precision values at the recall points
     prec_at_recall = np.interp(interP, mrec, mpre) # 40-point interpolated AP (KITTI)
 
-    # Computer AP as the mean of the maximum precision values
-    # AP = (1/40) *  Σ_{i=1}^{40} max precision_j
-    # where max precision_j is the maximum precision at recall >= r_i
+    # Compute AP as the mean of the maximum precision values
+    # Equation paper:
+    # AP|R = 1/|R_40| * Σ_r∈R ρinterp(r) = max ρ(r')
+    # R_40 = recall levels {1/40, 2/40, 3/40, ...., 1}
+    # ρ(r) = precision at recall r
+
+    # Equation code:
+    # AP|R = (1/40) *  Σ_{i=1}^{40} ρinterp(r) = max ρ(r')
+    # where ρ(r') is the maximum precision at recall >= r_i
     ap = np.mean([np.max(prec_at_recall[i:]) for i in range(40)]) 
 
     return ap, mpre, mrec
