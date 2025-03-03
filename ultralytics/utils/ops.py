@@ -550,17 +550,20 @@ def xyxyxyxy2xywhr(x):
         # NOTE: Use cv2.minAreaRect to get accurate xywhr,
         # especially some objects are cut off by augmentations in dataloader. Developer should keep in mind 
         # that the returned RotatedRect can contain negative indices when data is close to the containing Mat element boundary.
-        # NOTE: https://mmrotate.readthedocs.io/en/latest/intro.html
+        # source: https://mmrotate.readthedocs.io/en/latest/intro.html
         (cx, cy), (w, h), angle = cv2.minAreaRect(pts)
-	    # TODO: Test this two different approaches
+
+	    # TODO: Test this two different angle pre-processing approaches
         # 21.12.2024: 0° → 90° and Width/Height switch (tested from user: dfl_loss lower)
         #if angle == -0.0 or angle == 0.0: # NOTE: https://github.com/ultralytics/ultralytics/issues/15771
         #    angle = 90
         #    w, h = h, w
+
         # 23.12.2024: 90° → 0° and Width/Height switch (tested from user: mAP higher)
-        # if angle == 90: NOTE: https://github.com/ultralytics/ultralytics/pull/16237
-        #   angle = 0
-        #   w, h = h, w
+        #if angle == 90: # NOTE: https://github.com/ultralytics/ultralytics/pull/16237
+        #    angle = 0
+        #    w, h = h, w
+            
         rboxes.append([cx, cy, w, h, angle / 180 * np.pi])
     return torch.tensor(rboxes, device=x.device, dtype=x.dtype) if is_torch else np.asarray(rboxes)
 
