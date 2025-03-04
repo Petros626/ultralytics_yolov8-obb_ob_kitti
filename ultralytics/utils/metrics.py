@@ -789,6 +789,7 @@ class Metric(SimpleClass):
         self.all_ap = []  # (nc, 10)
         self.ap_class_index = []  # (nc, )
         self.nc = 0
+        print('class Metric: __init__() called')
 
     @property
     def ap50(self):
@@ -801,6 +802,22 @@ class Metric(SimpleClass):
         # [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
         #print('class Metric: using ap50')
         return self.all_ap[:, 0] if len(self.all_ap) else []
+    
+    def ap50_kitti(self, names):
+        """
+        Returns the Average Preicison (AP) at an IoU threshold of 0.5 for all classes (formatted).
+        
+        Returns:
+            (np.ndarray, list): Array of shape (nc,) with AP50 values per class, or an empty list if not available.
+        """
+        if not len(self.all_ap):
+            return []
+        
+        ap50_values = self.all_ap[:, 0]
+        class_indices = self.ap_class_index
+
+        return "\n".join([f'{names[class_idx]} \t{ap50_values[i]:.3f}' for i, class_idx in enumerate(class_indices)])
+
 
     # 25.12.2024 Average Precision for IoU 0.7.
     @property
@@ -815,6 +832,21 @@ class Metric(SimpleClass):
         #print('class Metric: using ap70')
         return self.all_ap[:, 4] if len(self.all_ap) else []
 
+    def ap70_kitti(self, names):
+        """
+        Returns the Average Preicison (AP) at an IoU threshold of 0.7 for all classes (formatted).
+        
+        Returns:
+            (np.ndarray, list): Array of shape (nc,) with AP70 values per class, or an empty list if not available.
+        """
+        if not len(self.all_ap):
+            return []
+        
+        ap70_values = self.all_ap[:, 4]
+        class_indices = self.ap_class_index
+
+        return "\n".join([f'{names[class_idx]} \t{ap70_values[i]:.3f}' for i, class_idx in enumerate(class_indices)])
+        
     @property
     def ap(self): # Note: Default this value represents the AP for one specific class, and not overall classes (mAP).
         """
@@ -1017,6 +1049,8 @@ class DetMetrics(SimpleClass):
         self.box = Metric()
         self.speed = {"preprocess": 0.0, "inference": 0.0, "loss": 0.0, "postprocess": 0.0}
         self.task = "detect"
+        print('class DetMetrics: __init__() called')
+
 
     def process(self, tp, conf, pred_cls, target_cls):
         """Process predicted results for object detection and update metrics."""
