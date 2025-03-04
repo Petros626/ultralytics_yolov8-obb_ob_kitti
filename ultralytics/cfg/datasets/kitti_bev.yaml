@@ -19,7 +19,7 @@
 # Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
 path: /home/heizung1/ultralytics_yolov8-obb_ob_kitti/ultralytics/cfg/datasets/kitti # dataset root dir
 train: images/train/ # train images (relative to 'path') 18560 images (3712 training images extended with data augmentation)
-val: images/val/ # val images (relative to 'path') 3769 images
+val: images/val/ # val images (relative to 'path') 3699 images
 test: # test images (optional)
 
 # Classes in YOLO format (category_id starts at 0) 
