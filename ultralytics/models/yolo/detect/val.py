@@ -60,8 +60,7 @@ class DetectionValidator(BaseValidator):
             bboxes = batch["bboxes"] * torch.tensor((width, height, width, height), device=self.device)
             self.lb = [
                 torch.cat([batch["cls"][batch["batch_idx"] == i], bboxes[batch["batch_idx"] == i]], dim=-1)
-                for i in range(nb)
-            ]
+                for i in range(nb)] if self.args.save_hybrid else []
 
         return batch
 
