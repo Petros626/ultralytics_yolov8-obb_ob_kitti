@@ -22,6 +22,7 @@ def main():
     parser = argparse.ArgumentParser(description='Export YOLOv8 OBB model to TensorRT with user-configurable parameters.')
 
     parser.add_argument('--model_path', type=str, required=True, help='Path to the trained YOLOv8 model (.pt file).')
+    parser.add_argument('--export_fp32', type=bool, default=False, help='Export to FP32 TensorRT model.')
     parser.add_argument('--export_fp16', type=bool, default=False, help='Export to FP16 TensorRT model.')
     parser.add_argument('--export_int8', type=bool, default=False, help='Export to INT8 TensorRT model.')
     parser.add_argument('--format', type=str, default='engine', help="Format to export to (e.g., 'engine', 'onnx').")
@@ -30,12 +31,12 @@ def main():
     parser.add_argument('--optimize', type=bool, default=False, help='Applies optimization for mobile devices when exporting to TorchScript, potentially reducing model size and improving performance.')
     parser.add_argument('--half', type=bool, default=False, help='Enables FP16 (half-precision) quantization, reducing model size and potentially speeding up inference on supported hardware.')
     parser.add_argument('--int8', type=bool, default=False, help='Activates INT8 quantization, further compressing the model and speeding up inference with minimal accuracy loss, primarily for edge devices.')
-    parser.add_argument('--dynamic', type=bool, default=False, help='Allows dynamic input sizes for ONNX, TensorRT and OpenVINO exports, enhancing flexibility in handling varying image dimensions (enforced).')
+    parser.add_argument('--dynamic', type=bool, default=True, help='Allows dynamic input sizes for ONNX, TensorRT and OpenVINO exports, enhancing flexibility in handling varying image dimensions (enforced).')
     parser.add_argument('--simplify', type=bool, default=False, help='Simplifies the model graph for ONNX exports with onnxslim, potentially improving performance and compatibility.')
     parser.add_argument('--opset', type=int, default=None, help='Specifies the ONNX opset version for compatibility with different ONNX parsers and runtimes. If not set, uses the latest supported version.')
-    parser.add_argument('--workspace', type=int, default=None, help='Sets the maximum workspace size in GiB for TensorRT optimizations, balancing memory usage and performance; use None for auto-allocation by TensorRT up to device maximum.')
+    parser.add_argument('--workspace', type=float, default=None, help='Sets the maximum workspace size in GiB for TensorRT optimizations, balancing memory usage and performance; use None for auto-allocation by TensorRT up to device maximum.')
     parser.add_argument('--nms', type=bool, default=False, help='Adds Non-Maximum Suppression (NMS) to the exported model when supported (see Export Formats), improving detection post-processing efficiency.')
-    parser.add_argument('--batch', type=int, default=1, help="Batch size for export. For INT8 it's recommended using a larger batch like batch=8 (calibrated as batch=16))")
+    parser.add_argument('--batch', type=int, default=16, help="Batch size for export. For INT8 it's recommended using a larger batch like batch=8 (calibrated as batch=16))")
     parser.add_argument('--device', type=str, default='0', help="Device to use for export (e.g., '0' for GPU 0).")
     parser.add_argument('--data', type=str, default=None, help="Path to the dataset configuration file for INT8 calibration.")
 
@@ -61,6 +62,14 @@ def main():
         'data': args.data,
     }
 
+    if args.export_fp32: # data argument isn't needed for FP32 exports since no calibration is required
+        print('Exporting to FP32 TensorRT model...')
+        fp32_args = export_args.copy()
+        fp32_args['half'] = False
+        fp32_args['int8'] = False
+        export_model(model, fp32_args)
+        print('FP32 export completed.')
+
     if args.export_fp16: # data argument isn't needed for FP16 exports since no calibration is required
         print('Exporting to FP16 TensorRT model...')
         fp16_args = export_args.copy()
@@ -77,8 +86,8 @@ def main():
         export_model(model, int8_args)
         print('INT8 export completed.\nThe calibration .cache which can be reused to speed up export of future model weights using the same data, but this may result in poor calibration when the data is vastly different or if the batch value is changed drastically. In these circumstances, the existing .cache should be renamed and moved to a different directory or deleted entirely.')
 
-    if not args.export_fp16 and not args.export_int8:
-        print('No export option selected. Please specify --export_fp16 and/or --export_int8.')
+    if not args.export_fp32 and not args.export_fp16 and not args.export_int8:
+        print('No export option selected. Please specify export option.')
 
 if __name__ == '__main__':
     main()
