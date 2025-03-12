@@ -98,6 +98,7 @@ def seed_worker(worker_id):  # noqa
 
 def build_yolo_dataset(cfg, img_path, batch, data, mode="train", rect=False, stride=32, multi_modal=False):
     """Build YOLO Dataset."""
+    #print('build_yolo_dataset() called')
     dataset = YOLOMultiModalDataset if multi_modal else YOLODataset
     return dataset(
         img_path=img_path,
@@ -106,7 +107,7 @@ def build_yolo_dataset(cfg, img_path, batch, data, mode="train", rect=False, str
         augment=mode == "train",  # augmentation
         hyp=cfg,  # TODO: probably add a get_hyps_from_cfg function
         rect=cfg.rect or rect,  # rectangular batches
-        cache=cfg.cache or None,
+        cache=cfg.cache or None, 
         single_cls=cfg.single_cls or False,
         stride=int(stride),
         pad=0.0 if mode == "train" else 0.5,
@@ -141,6 +142,9 @@ def build_grounding(cfg, img_path, json_file, batch, mode="train", rect=False, s
 
 def build_dataloader(dataset, batch, workers, shuffle=True, rank=-1):
     """Return an InfiniteDataLoader or DataLoader for training or validation set."""
+    #print('build_dataloader() called')
+    #print(dataset[0]['difficulty']) # DEBUG verified difficulty data contained
+    #print('-> contains the difficulty metadata')
     batch = min(batch, len(dataset))
     nd = torch.cuda.device_count()  # number of CUDA devices
     nw = min(os.cpu_count() // max(nd, 1), workers)  # number of workers
