@@ -178,6 +178,7 @@ class Compose:
             >>> transforms = [RandomHSV(), RandomFlip()]
             >>> compose = Compose(transforms)
         """
+        #print('class Compose: __init__() called')
         self.transforms = transforms if isinstance(transforms, list) else [transforms]
 
     def __call__(self, data):
@@ -1525,6 +1526,7 @@ class LetterBox:
             >>> letterbox = LetterBox(new_shape=(640, 640), auto=False, scaleFill=False, scaleup=True, stride=32)
             >>> resized_img = letterbox(original_img)
         """
+        #print('class LetterBox: __init__() called')
         self.new_shape = new_shape
         self.auto = auto
         self.scaleFill = scaleFill
@@ -1957,6 +1959,7 @@ class Format:
         normalize=True,
         return_mask=False,
         return_keypoint=False,
+        return_difficulty=True, # TODO: maybe not necessary?
         return_obb=False,
         mask_ratio=4,
         mask_overlap=True,
@@ -2000,6 +2003,7 @@ class Format:
         self.normalize = normalize
         self.return_mask = return_mask  # set False when training detection only
         self.return_keypoint = return_keypoint
+        self.return_difficulty = return_difficulty # TODO: maybe not necessary?
         self.return_obb = return_obb
         self.mask_ratio = mask_ratio
         self.mask_overlap = mask_overlap
