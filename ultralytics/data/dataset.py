@@ -56,12 +56,16 @@ class YOLODataset(BaseDataset):
 
     def __init__(self, *args, data=None, task="detect", **kwargs):
         """Initializes the YOLODataset with optional configurations for segments and keypoints."""
+        #print('class YOLODataset: __init__() called')
         self.use_segments = task == "segment"
         self.use_keypoints = task == "pose"
+        self.use_difficulty = task == "obb" # TODO: maybe not necessary?
         self.use_obb = task == "obb"
         self.data = data
         assert not (self.use_segments and self.use_keypoints), "Can not use both segments and keypoints."
         super().__init__(*args, **kwargs)
+        #print(self.labels[0]['difficulty']) # DEBUG: verified difficulty data contained
+        #print('class YOLODataset: self.labels contains the difficulty')
 
     def cache_labels(self, path=Path("./labels.cache")):
         """
@@ -73,6 +77,7 @@ class YOLODataset(BaseDataset):
         Returns:
             (dict): labels.
         """
+        print('class YOLODataset: cache_labels() called')
         x = {"labels": []}
         nm, nf, ne, nc, msgs = 0, 0, 0, 0, []  # number missing, found, empty, corrupt, messages
         desc = f"{self.prefix}Scanning {path.parent / path.stem}..."
@@ -91,13 +96,14 @@ class YOLODataset(BaseDataset):
                     self.label_files,
                     repeat(self.prefix),
                     repeat(self.use_keypoints),
+                    repeat(self.use_difficulty),
                     repeat(len(self.data["names"])),
                     repeat(nkpt),
                     repeat(ndim),
                 ),
             )
             pbar = TQDM(results, desc=desc, total=total)
-            for im_file, lb, shape, segments, keypoint, nm_f, nf_f, ne_f, nc_f, msg in pbar:
+            for im_file, lb, shape, segments, keypoint, difficulty, nm_f, nf_f, ne_f, nc_f, msg in pbar: # 08.03.25 Difficulty levels for custom validation
                 nm += nm_f
                 nf += nf_f
                 ne += ne_f
@@ -111,6 +117,7 @@ class YOLODataset(BaseDataset):
                             "bboxes": lb[:, 1:],  # n, 4
                             "segments": segments,
                             "keypoints": keypoint,
+                            "difficulty": difficulty, # 08.03.25 Difficulty levels for custom validation
                             "normalized": True,
                             "bbox_format": "xywh",
                         }
@@ -132,6 +139,7 @@ class YOLODataset(BaseDataset):
 
     def get_labels(self):
         """Returns dictionary of labels for YOLO training."""
+        #print('class YOLODataset: get_labels() called')
         self.label_files = img2label_paths(self.im_files)
         cache_path = Path(self.label_files[0]).parent.with_suffix(".cache")
         try:
@@ -144,7 +152,7 @@ class YOLODataset(BaseDataset):
         # Display cache
         nf, nm, ne, nc, n = cache.pop("results")  # found, missing, empty, corrupt, total
         if exists and LOCAL_RANK in {-1, 0}:
-            d = f"Scanning {cache_path}... {nf} images, {nm + ne} backgrounds, {nc} corrupt"
+            d = f"Scanning {cache_path}... {nf} images, {nm + ne} backgrounds, {nc} corrupt" # .cache file bar graph loaded
             TQDM(None, desc=self.prefix + d, total=n, initial=n)  # display results
             if cache["msgs"]:
                 LOGGER.info("\n".join(cache["msgs"]))  # display warnings
@@ -173,6 +181,7 @@ class YOLODataset(BaseDataset):
 
     def build_transforms(self, hyp=None):
         """Builds and appends transforms to the list."""
+        #print('class YOLODataset: build_transforms() called')
         if self.augment:
             hyp.mosaic = hyp.mosaic if self.augment and not self.rect else 0.0
             hyp.mixup = hyp.mixup if self.augment and not self.rect else 0.0
@@ -185,6 +194,7 @@ class YOLODataset(BaseDataset):
                 normalize=True,
                 return_mask=self.use_segments,
                 return_keypoint=self.use_keypoints,
+                return_difficulty=self.use_difficulty, # TODO: maybe not necessary?
                 return_obb=self.use_obb,
                 batch_idx=True,
                 mask_ratio=hyp.mask_ratio,
@@ -192,6 +202,7 @@ class YOLODataset(BaseDataset):
                 bgr=hyp.bgr if self.augment else 0.0,  # only affect training.
             )
         )
+
         return transforms
 
     def close_mosaic(self, hyp):
@@ -247,6 +258,7 @@ class YOLODataset(BaseDataset):
         new_batch["batch_idx"] = torch.cat(new_batch["batch_idx"], 0)
         return new_batch
 
+    
 
 class YOLOMultiModalDataset(YOLODataset):
     """
