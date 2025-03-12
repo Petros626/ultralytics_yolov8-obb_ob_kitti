@@ -2,6 +2,6 @@
 
 from .predict import OBBPredictor
 from .train import OBBTrainer
-from .val import OBBValidator
+from .val import OBBValidator, OBBValidatorCustom
 
-__all__ = "OBBPredictor", "OBBTrainer", "OBBValidator"
+__all__ = "OBBPredictor", "OBBTrainer", "OBBValidator, OBBValidatorCustom"

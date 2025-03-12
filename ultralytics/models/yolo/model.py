@@ -27,6 +27,7 @@ class YOLO(Model):
     @property
     def task_map(self):
         """Map head to model, trainer, validator, and predictor classes."""
+        #print('class YOLO: task_map() called')
         return {
             "classify": {
                 "model": ClassificationModel,
@@ -38,6 +39,7 @@ class YOLO(Model):
                 "model": DetectionModel,
                 "trainer": yolo.detect.DetectionTrainer,
                 "validator": yolo.detect.DetectionValidator,
+                "custom": yolo.detect.DetectionValidatorCustom, # extended for test purposes
                 "predictor": yolo.detect.DetectionPredictor,
             },
             "segment": {
@@ -56,6 +58,7 @@ class YOLO(Model):
                 "model": OBBModel,
                 "trainer": yolo.obb.OBBTrainer,
                 "validator": yolo.obb.OBBValidator,
+                "custom": yolo.obb.OBBValidatorCustom, # extended for test purposes
                 "predictor": yolo.obb.OBBPredictor,
             },
         }

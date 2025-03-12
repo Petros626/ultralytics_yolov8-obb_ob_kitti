@@ -534,7 +534,7 @@ def compute_ap(recall, precision):
 
     return ap, mpre, mrec
 
-def compute_ap_kitti(recall, precision):
+def compute_ap_pascalvoc(recall, precision):
     """
     Compute the average precision (AP) using 40 recall positions as per
     'Disentangling Monocular 3D Object Detection'.
@@ -549,7 +549,7 @@ def compute_ap_kitti(recall, precision):
         (np.ndarray): Precision envelope curve
         (np.ndarray): Modified recall curve
     """
-    #print('\nNew compute_ap_kitti method (40 recall points) is being used.') # DEBUG
+    #print('\nNew compute_ap_pascalvoc method (40 recall points) is being used.') # DEBUG
 
     # Append sentinel values (Recall=0 & Recall=1)
     mrec = np.concatenate(([0.0], recall, [1.0]))
@@ -671,7 +671,7 @@ def ap_per_class(
 # https://github.com/open-mmlab/mmdetection3d/blob/main/mmdet3d/evaluation/functional/kitti_utils/eval.py#L662
 # https://github.com/open-mmlab/mmdetection3d/blob/main/tests/test_evaluation/test_functional/test_kitti_eval.py#L202
 # https://github.com/open-mmlab/mmeval/blob/5b4ef8d0b564073848dea18513cea4bf1f25c65e/mmeval/metrics/average_precision.py#L168
-def ap_per_class_kitti(tp, conf, pred_cls, target_cls, plot=False, on_plot=None, save_dir=Path(), names={}, eps=1e-16, prefix=""):
+def ap_per_class_pascalvoc(tp, conf, pred_cls, target_cls, plot=False, on_plot=None, save_dir=Path(), names={}, eps=1e-16, prefix=""):
     """
     Computes the average precision per class for object detection evaluation using 40 recall positions
     as suggested in 'Disentangling Monocular 3D Object Detection'.
@@ -691,7 +691,7 @@ def ap_per_class_kitti(tp, conf, pred_cls, target_cls, plot=False, on_plot=None,
     Returns:
         Same as original function but with modified AP calculation using 40 recall positions.
     """
-    #print('\nNew ap_per_class_kitti method (40 recall points) is being used.')
+    #print('\nNew ap_per_class_pascalvoc method (40 recall points) is being used.')
     #check_method = False
 
     # Sort by objectness
@@ -728,7 +728,7 @@ def ap_per_class_kitti(tp, conf, pred_cls, target_cls, plot=False, on_plot=None,
 
 	    # AP from recall-precision curve
         for j in range(tp.shape[1]):
-            ap[ci, j], mpre, mrec = compute_ap_kitti(recall[:, j], precision[:, j]) # using the new 40 recall positions
+            ap[ci, j], mpre, mrec = compute_ap_pascalvoc(recall[:, j], precision[:, j]) # using the new 40 recall positions
             #if not check_method:
             #    print('\nNew AP calculation method (40 recall points) is being used.')
             #7    check_method = True
@@ -783,13 +783,14 @@ class Metric(SimpleClass):
 
     def __init__(self) -> None:
         """Initializes a Metric instance for computing evaluation metrics for the YOLOv8 model."""
+        #print('class Metric: __init__() called')
         self.p = []  # (nc, )
         self.r = []  # (nc, )
         self.f1 = []  # (nc, )
         self.all_ap = []  # (nc, 10)
         self.ap_class_index = []  # (nc, )
         self.nc = 0
-        print('class Metric: __init__() called')
+       
 
     @property
     def ap50(self):
@@ -858,14 +859,24 @@ class Metric(SimpleClass):
         return self.all_ap.mean(1) if len(self.all_ap) else []
 
     @property
-    def ap_custom(self): # TODO: rethink about Average Precision columnn of paper BEVDetNet
+    def ap50_all_classes_average(self):
         """
-        Returns the Average Precision (AP) at an IoU threshold of 0.5 & 0.7 for all classes.
+        Returns the Average Precision (AP) at an IoU threshold of 0.5 for all classes.
 
         Returns:
-            (np.ndarray, list): Array of shape (nc,) with AP50&70 values per class, or an empty list if not available.
+            (np.ndarray, list): Array of shape (nc,) with AP50 values per class, or an empty list if not available.
         """
-        return (self.all_ap[:, 0].mean(), self.all_ap[:, 4].mean()) if len(self.all_ap) else ([], [])
+        return self.all_ap[:, 0].mean()  if len(self.all_ap) else []
+    
+    @property
+    def ap70_all_classes_average(self):
+        """
+        Returns the Average Precision (AP) at an IoU threshold of 0.7 for all classes.
+
+        Returns:
+            (np.ndarray, list): Array of shape (nc,) with AP70 values per class, or an empty list if not available.
+        """
+        return self.all_ap[:, 4].mean() if len(self.all_ap) else []
 
     """
     KITTI AP
@@ -943,12 +954,20 @@ class Metric(SimpleClass):
         return self.all_ap.mean() if len(self.all_ap) else 0.0
 
     def mean_results(self):
-        """Mean of results, return mp, mr, map50, map70, map.""" # 25.01.25 updated by map70
+        """Mean of results, return mp, mr, map50, map70, map.""" # 25.01.25 updated by map70 for training job
         return [self.mp, self.mr, self.map50, self.map70, self.map]
+    
+    def mean_results_custom(self):
+        """Mean of results, return mp, mr, map50, map70""" # 11.03.25 custom validation job
+        return [self.mp, self.mr, self.map50, self.map70]
 
     def class_result(self, i):
-        """Class-aware result, return p[i], r[i], ap50[i], ap70[i], ap[i].""" # 24.01.2025 updated by ap70
+        """Class-aware result, return p[i], r[i], ap50[i], ap70[i], ap[i].""" # 24.01.2025 updated by ap70 for training job
         return self.p[i], self.r[i], self.ap50[i], self.ap70[i], self.ap[i]
+    
+    def class_result_custom(self, i):
+        """Class-aware result, return p[i], r[i], ap50[i], ap70[i]""" # 11.03.25 custom validation job
+        return self.p[i], self.r[i], self.ap50[i], self.ap70[i]
 
     @property
     def maps(self):
@@ -962,6 +981,10 @@ class Metric(SimpleClass):
         """Model fitness as a weighted combination of metrics."""
         w = [0.0, 0.0, 0.1, 0.1, 0.9]  # weights for [P, R, mAP@0.5, mAP@0.7, mAP@0.5:0.95]
         return (np.array(self.mean_results()) * w).sum()
+    
+    def fitness_custom(self):
+        w = [0.0, 0.0, 0.1, 0.1] # weights for [P, R, mAP@0.5, mAP@0.7]
+        return (np.array(self.mean_results_custom()) * w).sum()
 
     def update(self, results):
         """
@@ -1042,6 +1065,7 @@ class DetMetrics(SimpleClass):
 
     def __init__(self, save_dir=Path("."), plot=False, on_plot=None, names={}) -> None:
         """Initialize a DetMetrics instance with a save directory, plot flag, callback function, and class names."""
+        #print('class DetMetrics: __init__() called')
         self.save_dir = save_dir
         self.plot = plot
         self.on_plot = on_plot
@@ -1049,11 +1073,11 @@ class DetMetrics(SimpleClass):
         self.box = Metric()
         self.speed = {"preprocess": 0.0, "inference": 0.0, "loss": 0.0, "postprocess": 0.0}
         self.task = "detect"
-        print('class DetMetrics: __init__() called')
 
 
     def process(self, tp, conf, pred_cls, target_cls):
         """Process predicted results for object detection and update metrics."""
+        print('class DetMetrics: process() called')
         results = ap_per_class(
             tp,
             conf,
@@ -1070,16 +1094,19 @@ class DetMetrics(SimpleClass):
     @property
     def keys(self):
         """Returns a list of keys for accessing specific metrics."""
-        return ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP70(B)", "metrics/mAP50-95(B)"] 
+        print('class DetMetrics: keys()')
+        return ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP70(B)", "metrics/mAP50-95(B)"]
 
     def mean_results(self):
         """Calculate mean of detected objects & return precision, recall, mAP50, mAP70, and mAP50-95."""
+        print('class DetMetrics: mean_results()')
         return self.box.mean_results()
 
     def class_result(self, i):
         """Return the result of evaluating the performance of an object detection model on a specific class."""
+        print('class DetMetrics: class_result()')
         return self.box.class_result(i)
-
+    
     @property
     def maps(self):
         """Returns mean Average Precision (mAP) scores per class."""
@@ -1443,6 +1470,7 @@ class OBBMetrics(SimpleClass):
 
     def __init__(self, save_dir=Path("."), plot=False, on_plot=None, names=()) -> None:
         """Initialize an OBBMetrics instance with directory, plotting, callback, and class names."""
+        #print('class OBBMetrics: __init__() called')
         self.save_dir = save_dir
         self.plot = plot
         self.on_plot = on_plot
@@ -1452,20 +1480,8 @@ class OBBMetrics(SimpleClass):
 
     def process(self, tp, conf, pred_cls, target_cls):
         """Process predicted results for object detection and update metrics."""
-        # results = ap_per_class(
-        #    tp,
-        #    conf,
-        #    pred_cls,
-        #    target_cls,
-        #    plot=self.plot,
-        #    save_dir=self.save_dir,
-        #    names=self.names,
-        #    on_plot=self.on_plot,
-        # )[2:]
-        # self.box.nc = len(self.names)
-        # self.box.update(results)
-
-        results = ap_per_class_kitti( # new method for calculating AP with new interp of def compute_ap_kitti().
+        #print('class OBBMetrics: process() called')
+        results = ap_per_class_pascalvoc( # new method for calculating AP with new interp of def compute_ap_pascalvoc().
             tp,
             conf,
             pred_cls,
@@ -1481,8 +1497,7 @@ class OBBMetrics(SimpleClass):
     @property
     def keys(self):
         """Returns a list of keys for accessing specific metrics."""
-        #return ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP50-95(B)"] # default
-        default_keys = ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP70(B)", "metrics/mAP50-95(B)"] # default metrics for training job
+        default_keys = ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP70(B)", "metrics/mAP50-95(B)"] # custom metrics for training job
         return default_keys
        
     def mean_results(self):
@@ -1491,7 +1506,7 @@ class OBBMetrics(SimpleClass):
 
     def class_result(self, i):
         """Return the result of evaluating the performance of an object detection model on a specific class."""
-        return self.box.class_result(i) # extended with method ap70
+        return self.box.class_result(i) # extended with method ap70 for training job
 
     @property
     def maps(self):
@@ -1502,6 +1517,80 @@ class OBBMetrics(SimpleClass):
     def fitness(self):
         """Returns the fitness of box object."""
         return self.box.fitness()
+
+    @property
+    def ap_class_index(self):
+        """Returns the average precision index per class."""
+        return self.box.ap_class_index
+
+    @property
+    def results_dict(self):
+        """Returns dictionary of computed performance metrics and statistics."""
+        return dict(zip(self.keys + ["fitness"], self.mean_results() + [self.fitness]))
+
+    @property
+    def curves(self):
+        """Returns a list of curves for accessing specific metrics curves."""
+        return []
+
+    @property
+    def curves_results(self):
+        """Returns a list of curves for accessing specific metrics curves."""
+        return []
+
+
+class OBBMetricsCustom(SimpleClass):
+    """Metrics for evaluating oriented bounding box (OBB) detection, see https://arxiv.org/pdf/2106.06072.pdf."""
+
+    def __init__(self, save_dir=Path("."), plot=False, on_plot=None, names=()) -> None:
+        """Initialize an OBBMetricsCustom instance with directory, plotting, callback, and class names."""
+        #print('class OBBMetricsCustom: __init__() called')
+        self.save_dir = save_dir
+        self.plot = plot
+        self.on_plot = on_plot
+        self.names = names
+        self.box = Metric()
+        self.speed = {"preprocess": 0.0, "inference": 0.0, "loss": 0.0, "postprocess": 0.0}
+
+    def process(self, tp, conf, pred_cls, target_cls):
+        """Process predicted results for object detection and update metrics."""
+        #print('class OBBMetricsCustom: process() called')
+        results = ap_per_class_pascalvoc( # new method for calculating AP with new interp of def compute_ap_pascalvoc().
+            tp,
+            conf,
+            pred_cls,
+            target_cls,
+            plot=self.plot,
+            save_dir=self.save_dir,
+            names=self.names,
+            on_plot=self.on_plot,
+        )[2:] # return from p to prec_values (excluding tp, fp)
+        self.box.nc = len(self.names)
+        self.box.update(results) # update the Metric() object with p, r, f1, ap, cls, p_curve, r_curve, f1_curve, x, prec_values
+
+    @property
+    def keys(self):
+        """Returns a list of keys for accessing specific metrics."""
+        custom_keys = ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP70(B)"]
+        return custom_keys
+       
+    def mean_results(self):
+        """Calculate mean of detected objects & return precision, recall, mAP50, mAP70"""
+        return self.box.mean_results_custom()
+
+    def class_result(self, i):
+        """Return the result of evaluating the performance of an object detection model on a specific class."""
+        return self.box.class_result_custom(i)
+
+    @property
+    def maps(self):
+        """Returns mean Average Precision (mAP) scores per class."""
+        return self.box.maps
+
+    @property
+    def fitness(self):
+        """Returns the fitness of box object."""
+        return self.box.fitness_custom()
 
     @property
     def ap_class_index(self):
