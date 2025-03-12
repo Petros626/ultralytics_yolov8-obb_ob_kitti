@@ -97,9 +97,10 @@ def verify_image(args):
 
 def verify_image_label(args):
     """Verify one image-label pair."""
-    im_file, lb_file, prefix, keypoint, num_cls, nkpt, ndim = args
+    im_file, lb_file, prefix, keypoint, difficulty, num_cls, nkpt, ndim = args # 08.03.25 add difficulty key
     # Number (missing, found, empty, corrupt), message, segments, keypoints
-    nm, nf, ne, nc, msg, segments, keypoints = 0, 0, 0, 0, "", [], None
+    nm, nf, ne, nc, msg, segments, keypoints, difficulty = 0, 0, 0, 0, "", [], None, None # New variable for the additional KITTI information
+
     try:
         # Verify images
         im = Image.open(im_file)
@@ -120,16 +121,24 @@ def verify_image_label(args):
             nf = 1  # label found
             with open(lb_file) as f:
                 lb = [x.split() for x in f.read().strip().splitlines() if len(x)] # default read all values from labels
-                # TODO: save the difficulties in a tensor or pass it to function
+
                 # 01.01.2025 keep only the first 9 values, NOTE: use 10-12 for validation
-                lb = [x[:9] for x in lb] 
+                # Label to extract only difficulty information
+                lb_temp = np.array(lb, dtype=np.float32)
+                lb = [x[:9] for x in lb] # Label YOLO format
+
                 if any(len(x) > 6 for x in lb) and (not keypoint):  # is segment
                     classes = np.array([x[0] for x in lb], dtype=np.float32)
                     segments = [np.array(x[1:], dtype=np.float32).reshape(-1, 2) for x in lb]  # (cls, xy1...)
                     lb = np.concatenate((classes.reshape(-1, 1), segments2boxes(segments)), 1)  # (cls, xywh)
-                lb = np.array(lb, dtype=np.float32)
-            nl = len(lb)
-            if nl:
+                lb = np.array(lb, dtype=np.float32) # full label array
+
+                # 08.03.25 Extract difficulties information, if available
+                if lb_temp.shape[1] > 8:
+                    difficulty = lb_temp[:, 9:12]  # Columns 9, 10, and 11
+                    
+
+            if nl := len(lb):
                 if keypoint:
                     assert lb.shape[1] == (5 + nkpt * ndim), f"labels require {(5 + nkpt * ndim)} columns each"
                     points = lb[:, 5:].reshape(-1, ndim)[:, :2]
@@ -160,17 +169,19 @@ def verify_image_label(args):
             nm = 1  # label missing
             lb = np.zeros((0, (5 + nkpt * ndim) if keypoints else 5), dtype=np.float32)
             print(f"Background-Label: {im_file} (missing)")  # DEBUG
+
         if keypoint:
             keypoints = lb[:, 5:].reshape(-1, nkpt, ndim)
             if ndim == 2:
                 kpt_mask = np.where((keypoints[..., 0] < 0) | (keypoints[..., 1] < 0), 0.0, 1.0).astype(np.float32)
                 keypoints = np.concatenate([keypoints, kpt_mask[..., None]], axis=-1)  # (nl, nkpt, 3)
-        lb = lb[:, :5]
-        return im_file, lb, shape, segments, keypoints, nm, nf, ne, nc, msg
+        lb = lb[:, :5] # Keep only (cls, xywh) for YOLO format
+
+        return im_file, lb, shape, segments, keypoints, difficulty, nm, nf, ne, nc, msg
     except Exception as e:
         nc = 1
         msg = f"{prefix}WARNING ⚠️ {im_file}: ignoring corrupt image/label: {e}"
-        return [None, None, None, None, None, nm, nf, ne, nc, msg]
+        return [None, None, None, None, None, None, nm, nf, ne, nc, msg]
 
 def visualize_image_annotations(image_path, txt_path, label_map):
     """
@@ -702,6 +713,7 @@ def autosplit(path=DATASETS_DIR / "coco8/images", weights=(0.9, 0.1, 0.0), annot
 
 def load_dataset_cache_file(path):
     """Load an Ultralytics *.cache dictionary from path."""
+    #print('load_dataset_cache_file() called')
     import gc
 
     gc.disable()  # reduce pickle load time https://github.com/ultralytics/ultralytics/pull/1585
