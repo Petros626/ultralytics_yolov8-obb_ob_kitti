@@ -63,6 +63,7 @@ class BaseDataset(Dataset):
         fraction=1.0,
     ):
         """Initialize BaseDataset with given configuration and options."""
+        #print('class BaseDataset: __init__() called')
         super().__init__()
         self.img_path = img_path
         self.imgsz = imgsz
@@ -71,8 +72,10 @@ class BaseDataset(Dataset):
         self.prefix = prefix
         self.fraction = fraction
         self.im_files = self.get_img_files(self.img_path)
-        self.labels = self.get_labels()
+        self.labels = self.get_labels() # 06.03.25 label information with difficulties
         self.update_labels(include_class=classes)  # single_cls and include_class
+        #print('class BaseDataset: self.labels contains the difficulty')
+        #print(self.labels[0]['difficulty']) # DEBUG: verified difficulty data contained
         self.ni = len(self.labels)  # number of images
         self.rect = rect
         self.batch_size = batch_size
@@ -105,6 +108,7 @@ class BaseDataset(Dataset):
 
     def get_img_files(self, img_path):
         """Read image files."""
+        #print('class BaseDataset: get_img_files() called')
         try:
             f = []  # image files
             for p in img_path if isinstance(img_path, list) else [img_path]:
@@ -131,20 +135,27 @@ class BaseDataset(Dataset):
 
     def update_labels(self, include_class: Optional[list]):
         """Update labels to include only these classes (optional)."""
+        #print('class BaseDataset: update_labels() called')
         include_class_array = np.array(include_class).reshape(1, -1)
+    
         for i in range(len(self.labels)):
             if include_class is not None:
                 cls = self.labels[i]["cls"]
                 bboxes = self.labels[i]["bboxes"]
                 segments = self.labels[i]["segments"]
                 keypoints = self.labels[i]["keypoints"]
+                # 09.03.25 add difficulty per label
+                difficulty = self.labels[i]["difficulty"] 
                 j = (cls == include_class_array).any(1)
                 self.labels[i]["cls"] = cls[j]
                 self.labels[i]["bboxes"] = bboxes[j]
+                # 09.03.25  filter difficulty per label
+                self.labels[i]["difficulty"] = difficulty[j] 
                 if segments:
                     self.labels[i]["segments"] = [segments[si] for si, idx in enumerate(j) if idx]
                 if keypoints is not None:
                     self.labels[i]["keypoints"] = keypoints[j]
+            
             if self.single_cls:
                 self.labels[i]["cls"][:, 0] = 0
 
