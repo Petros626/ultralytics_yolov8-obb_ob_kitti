@@ -642,7 +642,46 @@ class Model(nn.Module):
         validator(model=self.model)
         self.metrics = validator.metrics
         return validator.metrics
+    
+    # 06.03.2025 custom validation function to match the KITTI metrics
+    def val_kitti(
+        self,
+        validator=None,
+        **kwargs: Any,
+    ):
+        """
+        Validates the model using a specified dataset and validation configuration, specifically for KITTI metrics.
 
+        This method facilitates the model validation process, allowing for customization through various settings. It
+        supports validation with a custom validator or the default validation approach. The method combines default
+        configurations, method-specific defaults, and user-provided arguments to configure the validation process.
+
+        Args:
+            validator (ultralytics.engine.validator.BaseValidator | None): An instance of a custom validator class for
+                validating the model.
+            **kwargs: Arbitrary keyword arguments for customizing the validation process.
+
+        Returns:
+            (ultralytics.utils.metrics.DetMetrics): Validation metrics obtained from the validation process.
+
+        Raises:
+            AssertionError: If the model is not a PyTorch model.
+
+        Examples:
+            >>> model = YOLO("yolo11n.pt")
+            >>> results = model.val_kitti(data="kitti.yaml", imgsz=640)
+            >>> print(results.box.map)  # Print mAP50-95
+        """
+        #print('class Model: val_kitti() called')
+        custom = {"rect": True}  # method defaults
+        args = {**self.overrides, **custom, **kwargs, "mode": "val"}  # highest priority args on the right
+
+        #validator = (validator or self._smart_load("validator"))(args=args, _callbacks=self.callbacks) # default
+        validator = (validator or self._smart_load("custom"))(args=args, _callbacks=self.callbacks) # custom
+        validator(model=self.model) 
+        self.metrics = validator.metrics
+        return validator.metrics
+        
     def benchmark(
         self,
         **kwargs: Any,
@@ -1094,6 +1133,7 @@ class Model(nn.Module):
             - This method is typically used internally by other methods of the Model class.
             - The task_map attribute should be properly initialized with the correct mappings for each task.
         """
+        #print('class Model: smart_load() called')
         try:
             return self.task_map[self.task][key]
         except Exception as e:
@@ -1174,3 +1214,4 @@ class Model(nn.Module):
             >>> print(model.task)
         """
         return self._modules["model"] if name == "model" else getattr(self.model, name)
+    
