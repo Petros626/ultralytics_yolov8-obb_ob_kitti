@@ -67,7 +67,7 @@ class DetectionValidator(BaseValidator):
 
     def init_metrics(self, model):
         """Initialize evaluation metrics for YOLO."""
-        print('class DetectionValidator: init_metrics() called')
+        #print('class DetectionValidator: init_metrics() called')
         val = self.data.get(self.args.split, "")  # validation path
         self.is_coco = (
             isinstance(val, str)
@@ -88,7 +88,7 @@ class DetectionValidator(BaseValidator):
 
     def get_desc(self):
         """Return a formatted string summarizing class metrics of YOLO model."""
-        print('class DetectionValidator: get_desc() called')
+        #print('class DetectionValidator: get_desc() called')
         return ("%22s" + "%11s" * 7) % ("Class", "Images", "Instances", "Box(P", "R", "mAP50", "mAP70", "mAP50-95)") # 25.01.25 Updated by mAP70
     
 
@@ -176,7 +176,7 @@ class DetectionValidator(BaseValidator):
 
     def finalize_metrics(self, *args, **kwargs):
         """Set final values for metrics speed and confusion matrix."""
-        print('class DetectionValidator: finalize_metrics() called')
+        #print('class DetectionValidator: finalize_metrics() called')
         self.metrics.speed = self.speed
         self.metrics.confusion_matrix = self.confusion_matrix
 
@@ -193,7 +193,7 @@ class DetectionValidator(BaseValidator):
     # 25.01.25 Updated by mAP70
     def print_results(self):
         """Prints training/validation set metrics per class."""
-        print('class DetectionValidator: print_results() called')
+        #print('class DetectionValidator: print_results() called')
         pf = "%22s" + "%11i" * 2 + "%11.3g" * len(self.metrics.keys)  # print format, (p, r, map50, map70, map50-95)
         LOGGER.info(pf % ("all", self.seen, self.nt_per_class.sum(), *self.metrics.mean_results()))
         if self.nt_per_class.sum() == 0:
@@ -348,10 +348,11 @@ class DetectionValidator(BaseValidator):
 class DetectionValidatorCustom(BaseValidatorCustom):
     def __init__(self, dataloader=None, save_dir=None, pbar=None, args=None, _callbacks=None):
         """Initialize detection model with necessary variables and settings."""
-        #rint('class DetectionValidatorCustom: __init__() called')
+        #print('class DetectionValidatorCustom: __init__() called')
         super().__init__(dataloader, save_dir, pbar, args, _callbacks)
-        self.nt_per_class = None
-        self.nt_per_image = None
+        self.nt_per_class = None # no. targets per class
+        self.nt_per_image = None # no. targets per image
+        self.nd_per_class = None # no. difficulties per class
         self.is_coco = False
         self.is_lvis = False
         self.class_map = None
@@ -402,8 +403,9 @@ class DetectionValidatorCustom(BaseValidatorCustom):
         self.confusion_matrix = ConfusionMatrix(nc=self.nc, conf=self.args.conf)
         self.seen = 0
         self.jdict = []
-        self.stats = dict(tp=[], conf=[], pred_cls=[], target_cls=[], target_img=[])
-
+        self.stats = dict(tp=[], conf=[], pred_cls=[], target_cls=[], target_img=[], difficulty=[]) # add list for difficulty
+        self.objects_per_class_and_difficulty = {} # 15.03.25 difficulty statistic dict
+    
     def get_desc(self):
         """Return a formatted string summarizing class metrics of YOLO model."""
         #print('class DetectionValidatorCustom: get_desc() called')
@@ -446,39 +448,51 @@ class DetectionValidatorCustom(BaseValidatorCustom):
         """Get the object level from the difficulty metadata in data."""
         return difficulty
 
-    def update_metrics(self, preds, batch): # maybe here the difficulty can be calculated
+    def update_metrics(self, preds, batch, target_difficulty=None): # maybe here the difficulty can be calculated
         """Metrics."""
-        # batch contains the difficulty information
-        #difficulty = batch.get("difficulty", None)
-        #print(bool(difficulty))
+
+        self.target_difficulty = target_difficulty # save difficulty for results output
 
         for si, pred in enumerate(preds):
-            self.seen += 1
+            self.seen += 1 # no. all validation images
             npr = len(pred) # number predictions
             stat = dict(
                 conf=torch.zeros(0, device=self.device),
                 pred_cls=torch.zeros(0, device=self.device),
                 tp=torch.zeros(npr, self.niou, dtype=torch.bool, device=self.device),
             )
+
             pbatch = self._prepare_batch(si, batch) # added difficulty key from batch, see _prepare_batch() in obb/val.py
             cls, bbox = pbatch.pop("cls"), pbatch.pop("bbox")
-            # 12.03.25 retrieve difficulty value from pbatch dictionary
-            difficulty = pbatch["difficulty"] # for the current sample
-            # 12.03.25 Calculate difficulty levels for each object in the current sample
+            # 12.03.25 Retrieve difficulty value from pbatch dictionary. Calculate difficulty levels for each object in the current sample
+            difficulty = pbatch["difficulty"]
             difficulty_levels = self.get_kitti_obj_level(difficulty)
-            #print("Difficulty_levels values:", difficulty_levels) # DEBUG
-            #print("Difficulty_levels length:", len(difficulty_levels)) # DEBUG
+
+            # DEBUG
+            #print("Difficulty_levels values:", difficulty_levels) 
+            #print("Difficulty_levels length:", len(difficulty_levels))
+
+            difficulty_levels = torch.tensor(difficulty_levels, device=self.device)
+           
+            if target_difficulty is not None:
+                mask = difficulty_levels == target_difficulty
+                cls = cls[mask]
+                bbox = bbox[mask]
+                difficulty_levels = difficulty_levels[mask]  
 
             nl = len(cls) # number labels
             stat["target_cls"] = cls
             stat["target_img"] = cls.unique()
             # 12.03.25 add the difficulty to stat dictionary
-            stat["difficulty"] = difficulty_levels 
+            #stat["difficulty"] = torch.tensor(difficulty_levels, device=self.device) # obj. level current sample
+            # new
+            stat["difficulty"] = difficulty_levels
 
+            # Update global metrics
             if npr == 0:
                 if nl:
                     for k in self.stats.keys():
-                        self.stats[k].append(stat[k])
+                        self.stats[k].append(stat[k]) # tp, conf, pred_cls, target_cls, target_img, difficulty
                     if self.args.plots:
                         self.confusion_matrix.process_batch(detections=None, gt_bboxes=bbox, gt_cls=cls)
                 continue
@@ -486,17 +500,21 @@ class DetectionValidatorCustom(BaseValidatorCustom):
             # Predictions
             if self.args.single_cls:
                 pred[:, 5] = 0
-            predn = self._prepare_pred(pred, pbatch)
-            stat["conf"] = predn[:, 4]
-            stat["pred_cls"] = predn[:, 5]
+            predn = self._prepare_pred(pred, pbatch) # in class OBBValidatorCustom
+            stat["conf"] = predn[:, 4] # confidence current sample
+            stat["pred_cls"] = predn[:, 5] # class current sample
 
             # Evaluate
-            if nl:
-                stat["tp"] = self._process_batch(predn, bbox, cls) # class OBBValidatorCustom
+            if nl: # numer labels
+                stat["tp"] = self._process_batch(predn, bbox, cls) # in class OBBValidatorCustom
             if self.args.plots:
                 self.confusion_matrix.process_batch(predn, bbox, cls)
-            for k in self.stats.keys():
+            for k in self.stats.keys(): # 'conf', 'pred_cls', 'tp', 'target_cls', 'target_img', 'difficulty'
                 self.stats[k].append(stat[k])
+                
+                #current_value = self.stats[k][-1]
+                #print(f"Key: {k}, Shape: {current_value.shape}")
+                #print(f"Key: {k}, Content: {len(self.stats[k])}")
 
             # Save
             if self.args.save_json:
@@ -517,38 +535,78 @@ class DetectionValidatorCustom(BaseValidatorCustom):
 
     def get_stats(self):
         """Returns metrics statistics and results dictionary."""
-        print('class DetectionValidatorCustom: get_stats() called')
+        #print('class DetectionValidatorCustom: get_stats() called')
         stats = {k: torch.cat(v, 0).cpu().numpy() for k, v in self.stats.items()}  # to numpy
-        #print('len stats: ', len(stats))
-        #print('type stats: ', type(stats))
-        #print('reduced: ', stats.values())
-        self.nt_per_class = np.bincount(stats["target_cls"].astype(int), minlength=self.nc)
-        self.nt_per_image = np.bincount(stats["target_img"].astype(int), minlength=self.nc)
+
+        # DEBUG
+        #difficulty_levels = stats["difficulty"] # 16907 objects in 3699 val. data
+        #unique_difficulties, counts = np.unique(stats["difficulty"], return_counts=True)
+        #print(f"Unique difficulties: {(unique_difficulties)}")
+        #print(f"Counts per difficulty: {(counts)}")
+
+        self.nt_per_class = np.bincount(stats["target_cls"].astype(int), minlength=self.nc) # no. targets per class
+        self.nt_per_image = np.bincount(stats["target_img"].astype(int), minlength=self.nc) # no. targets per image
+        self.nd_per_class = np.bincount(stats["difficulty"].astype(int), minlength=4) # no. difficulties per class
+        
+        
+        # 15.03.25 processes statistics for different classes and their difficulty levels
+        for class_idx in range(self.nc):
+            if class_idx == 0 and 0 in self.names:
+                continue
+            class_mask = stats["target_cls"] == class_idx
+            class_difficulties = stats["difficulty"][class_mask]
+
+            difficulty_counts = np.bincount(class_difficulties.astype(int), minlength=4)
+
+            self.objects_per_class_and_difficulty[self.names[class_idx]] = {
+                "Easy": difficulty_counts[1],
+                "Moderate": difficulty_counts[2],
+                "Hard": difficulty_counts[3],
+                "Unknown": difficulty_counts[0],
+            }
+
         stats.pop("target_img", None)
+
         if len(stats) and stats["tp"].any():
-            self.metrics.process(**stats)
+            # here the metrics are calculated
+            self.metrics.process(**stats) # class OBBMetricsCustom, 'tp', 'conf', 'pred_cls', 'target_cls', 'target_img', 'difficulty'
         return self.metrics.results_dict
 
     def print_results(self):
         """Prints training/validation set metrics per class."""
         #print('class DetectionValidatorCustom: print_results() called')
+
         # DEBUG
         #print('len metrics.keys: ', len(self.metrics.keys))
         #print('type metrics.keys: ', type(self.metrics.keys))
         #print(self.metrics.keys)
-        pf = "%22s" + "%11i" * 2 + "%11.3g" * len(self.metrics.keys)  # (p, r, ap50, ap70)
 
+        if hasattr(self, 'target_difficulty'):
+            if self.target_difficulty is None:
+                LOGGER.info("\n--- Check all difficulty categories ---")
+            else:
+                difficulty_name = {1: "Easy", 2: "Moderate", 3: "Hard"}.get(self.target_difficulty, "Unknown")
+                LOGGER.info(f"\n--- Check difficulty category: {difficulty_name} ---")
+        else:
+            LOGGER.info("\n--- Check all difficulty categories (standard) ---")
+
+        pf = "%22s" + "%11i" * 2 + "%11.4g" * len(self.metrics.keys)  # metrics.keys: p, r, ap50, ap70
         LOGGER.info(pf % ("all", self.seen, self.nt_per_class.sum(), *self.metrics.mean_results()))
+
         # DEBUG
         #print('len mean_results: ', len(self.metrics.mean_results()))
         #print('type mean_results: ', type(self.metrics.mean_results()))
         #print(self.metrics.mean_results())
+
         if self.nt_per_class.sum() == 0:
             LOGGER.warning(f"WARNING ⚠️ no labels found in {self.args.task} set, can not compute metrics without labels")
 
         # Print results per class
         if self.args.verbose and not self.training and self.nc > 1 and len(self.stats):
             for i, c in enumerate(self.metrics.ap_class_index):
+                #  Car       3343      13783       4398      0.869      0.844      0.896      0.885
+                #  Ped        817       2267       5929      0.537      0.381      0.413      0.377
+                #  Cyc        602        857       3599      0.614      0.426      0.477      0.421
                 LOGGER.info(
                     pf % (self.names[c], self.nt_per_image[c], self.nt_per_class[c], *self.metrics.class_result(i))
                 )
@@ -556,6 +614,19 @@ class DetectionValidatorCustom(BaseValidatorCustom):
             #print('len class_result: ', len(self.metrics.class_result(i)))
             #print('type class_result: ', type(self.metrics.class_result(i)))
             #print(self.metrics.class_result(i))
+
+        LOGGER.info("\nDistribution of difficulty levels across all objects:")
+        pf = "%22s" + "%11s" * 5  
+        LOGGER.info(pf % ("Difficulty", "All", "Easy", "Moderate", "Hard", "Unknown"))
+        LOGGER.info(pf % ("", self.nd_per_class.sum(), self.nd_per_class[1], self.nd_per_class[2], self.nd_per_class[3],self.nd_per_class[0]))
+
+        LOGGER.info("\nObjects per class and difficulty level:")
+        pf = "%22s" + "%11s" * 4  # Class, Easy, Moderate, Hard, Unknown
+        LOGGER.info(pf % ("Class", "Easy", "Moderate", "Hard", "Unknown"))
+        for class_name, difficulty_counts in self.objects_per_class_and_difficulty.items():
+                LOGGER.info(
+                    pf % (class_name, difficulty_counts["Easy"], difficulty_counts["Moderate"], difficulty_counts["Hard"], difficulty_counts["Unknown"])
+                )
 
         if self.args.plots:
             for normalize in True, False:

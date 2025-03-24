@@ -35,7 +35,7 @@ class OBBValidator(DetectionValidator):
 
     def init_metrics(self, model):
         """Initialize evaluation metrics for YOLO."""
-        print('class OBBValidator: init_metrics() called')
+        #print('class OBBValidator: init_metrics() called')
         super().init_metrics(model)
         val = self.data.get(self.args.split, "")  # validation path
         self.is_dota = isinstance(val, str) and "DOTA" in val  # is COCO
@@ -43,7 +43,7 @@ class OBBValidator(DetectionValidator):
     def postprocess(self, preds):
         """Apply Non-maximum suppression to prediction outputs."""
         if not self.printed:
-            print('class OBBValidator: postprocess() called')
+            #print('class OBBValidator: postprocess() called')
             self.printed = True
 
         return ops.non_max_suppression(
@@ -301,8 +301,9 @@ class OBBValidatorCustom(DetectionValidatorCustom):
     
         # 12.03.25 extract the difficulty from batch dictionary 
         difficulty = batch["difficulty"][si] # si = might be sample index?
-        #print("Difficulty values:", difficulty) DEBUG
-        #print("Difficulty length:", len(difficulty)) DEBUG
+        # DEBUG
+        #print("Difficulty values:", difficulty) 
+        #print("Difficulty length:", len(difficulty))
 
         if len(cls):
             bbox[..., :4].mul_(torch.tensor(imgsz, device=self.device)[[1, 0, 1, 0]])  # target boxes
@@ -316,10 +317,10 @@ class OBBValidatorCustom(DetectionValidatorCustom):
         This function processes a given `difficulty` array containing metadata about objects in a scene.
         Each object's difficulty level is calculated based on its height, truncation, and occlusion values.
         The function assigns one of the following difficulty levels for each object:
-            - `0`: Easy
-            - `1`: Moderate
-            - `2`: Hard
-            - `-1`: Unknown
+            - `1`: Easy
+            - `2`: Moderate
+            - `3`: Hard
+            - `0`: Unknown
 
         Parameters:
             difficulty (np.ndarray): A 2D array where each row corresponds to an object and contains:
@@ -341,22 +342,20 @@ class OBBValidatorCustom(DetectionValidatorCustom):
 
                 if precal_height >= 40 and truncation <= 0.15 and occlusion <= 0: # fully visible
                     #self.level_str = 'Easy'
-                    level = 0 # Easy
+                    level = 1 # Easy
                 elif precal_height >=25 and truncation <=0.3 and occlusion <= 1: # Partly occluded
                     #self.level_str = 'Moderate'
-                    level = 1 # Moderate
+                    level = 2 # Moderate
                 elif precal_height >= 25 and truncation <= 0.5 and occlusion <= 2: # Largely occluded
                     #self.level_str = 'Hard'
-                    level = 2 # Hard
+                    level = 3 # Hard
                 else:
                     #self.level_str = 'Unknown'
-                    level = -1 # Unknown
+                    level = 0 # Unknown
                 
                 difficulty_levels.append(level)
 
         return difficulty_levels
-
-            
 
     def _prepare_pred(self, pred, pbatch):
         """Prepares and returns a batch for OBB validation with scaled and padded bounding boxes."""

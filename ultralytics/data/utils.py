@@ -176,7 +176,7 @@ def verify_image_label(args):
                 kpt_mask = np.where((keypoints[..., 0] < 0) | (keypoints[..., 1] < 0), 0.0, 1.0).astype(np.float32)
                 keypoints = np.concatenate([keypoints, kpt_mask[..., None]], axis=-1)  # (nl, nkpt, 3)
         lb = lb[:, :5] # Keep only (cls, xywh) for YOLO format
-
+        
         return im_file, lb, shape, segments, keypoints, difficulty, nm, nf, ne, nc, msg
     except Exception as e:
         nc = 1

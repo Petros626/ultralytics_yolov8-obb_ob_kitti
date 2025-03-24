@@ -173,12 +173,12 @@ class BaseValidator:
         self.init_metrics(de_parallel(model)) 
         self.jdict = []  # empty before each val
         
-        print('class DetectionValidator: update_metrics() called')
-        print('-> inside class DetectionValidator: _process_batch() called')
+        #print('class DetectionValidator: update_metrics() called')
+        #print('-> inside class DetectionValidator: _process_batch() called')
 
-        print('-> inside class OBBValidator: _prepare_batch() called')
-        print('-> inside class OBBValidator: _process_batch() called')
-        print('-> inside class OBBValidator: _prepare_pred() called')
+        #print('-> inside class OBBValidator: _prepare_batch() called')
+        #print('-> inside class OBBValidator: _process_batch() called')
+        #print('-> inside class OBBValidator: _prepare_pred() called')
 
         for batch_i, batch in enumerate(bar):
             self.run_callbacks("on_val_batch_start")
@@ -395,6 +395,9 @@ class BaseValidatorCustom:
         self.plots = {}
         self.callbacks = _callbacks or callbacks.get_default_callbacks()
 
+    def print_difficulty_statistics(self):
+        pass
+
     @smart_inference_mode()
     def __call__(self, trainer=None, model=None):
         """Executes validation process, running inference on dataloader and computing performance metrics."""
@@ -448,7 +451,7 @@ class BaseValidatorCustom:
             self.stride = model.stride  # used in get_dataloader() for padding
             self.dataloader = self.dataloader or self.get_dataloader(self.data.get(self.args.split), self.args.batch)
 
-            model.eval() # überspringen, da jedes Bild einzeln validiert wird. Balkenanzeige
+            model.eval() 
             model.warmup(imgsz=(1 if pt else self.args.batch, 3, imgsz, imgsz))  # warmup
         
         self.run_callbacks("on_val_start")
@@ -463,7 +466,7 @@ class BaseValidatorCustom:
         bar = TQDM(self.dataloader, desc=self.get_desc(), total=len(self.dataloader))
         self.init_metrics(de_parallel(model))
         self.jdict = []  # empty before each val
-        
+
         #print('class DetectionValidatorCustom: update_metrics() called')
         #print('-> inside class DetectionValidatorCustom: _process_batch() called')
 
@@ -474,6 +477,7 @@ class BaseValidatorCustom:
         for batch_i, batch in enumerate(bar):
             self.run_callbacks("on_val_batch_start")
             self.batch_i = batch_i
+
             # Preprocess
             with dt[0]:
                 batch = self.preprocess(batch)
@@ -491,20 +495,20 @@ class BaseValidatorCustom:
             with dt[3]:
                 preds = self.postprocess(preds)
 
-
-            self.update_metrics(preds, batch)
+            self.update_metrics(preds, batch) # class DetectionValidatorCustom
             if self.args.plots and batch_i < 3:
                 self.plot_val_samples(batch, batch_i)
                 self.plot_predictions(batch, preds, batch_i)
 
             self.run_callbacks("on_val_batch_end")
-
-        stats = self.get_stats()
-        self.check_stats(stats)
+   
+        stats = self.get_stats() # class DetectionValidatorCustom
+        self.check_stats(stats) # class BaseValidatorCustom
         self.speed = dict(zip(self.speed.keys(), (x.t / len(self.dataloader.dataset) * 1e3 for x in dt)))
-        self.finalize_metrics()
-        self.print_results()
+        self.finalize_metrics() # class DetectionValidatorCustom
+        self.print_results() # class DetectionValidatorCustom
         print('after custom table')
+        
         self.run_callbacks("on_val_end")
         if self.training:
             model.float()
