@@ -534,7 +534,7 @@ def compute_ap(recall, precision):
 
     return ap, mpre, mrec
 
-def compute_ap_pascalvoc(recall, precision):
+def compute_ap_40P(recall, precision):
     """
     Compute the average precision (AP) using 40 recall positions as per
     'Disentangling Monocular 3D Object Detection'.
@@ -549,7 +549,7 @@ def compute_ap_pascalvoc(recall, precision):
         (np.ndarray): Precision envelope curve
         (np.ndarray): Modified recall curve
     """
-    #print('\nNew compute_ap_pascalvoc method (40 recall points) is being used.') # DEBUG
+    #print('\nNew compute_ap_40P method (40 recall points) is being used.') # DEBUG
 
     # Append sentinel values (Recall=0 & Recall=1)
     mrec = np.concatenate(([0.0], recall, [1.0]))
@@ -576,7 +576,7 @@ def compute_ap_pascalvoc(recall, precision):
     # Equation code:
     # AP|R = (1/40) *  Σ_{i=1}^{40} ρinterp(r) = max ρ(r')
     # where ρ(r') is the maximum precision at recall >= r_i
-    ap = np.mean([np.max(prec_at_recall[i:]) for i in range(40)]) 
+    ap = np.mean([np.max(prec_at_recall[i:]) for i in range(40)])  
 
     return ap, mpre, mrec
 
@@ -671,7 +671,7 @@ def ap_per_class(
 # https://github.com/open-mmlab/mmdetection3d/blob/main/mmdet3d/evaluation/functional/kitti_utils/eval.py#L662
 # https://github.com/open-mmlab/mmdetection3d/blob/main/tests/test_evaluation/test_functional/test_kitti_eval.py#L202
 # https://github.com/open-mmlab/mmeval/blob/5b4ef8d0b564073848dea18513cea4bf1f25c65e/mmeval/metrics/average_precision.py#L168
-def ap_per_class_pascalvoc(tp, conf, pred_cls, target_cls, plot=False, on_plot=None, save_dir=Path(), names={}, eps=1e-16, prefix=""):
+def ap_per_class_40P(tp, conf, pred_cls, target_cls, plot=False, on_plot=None, save_dir=Path(), names={}, eps=1e-16, prefix=""):
     """
     Computes the average precision per class for object detection evaluation using 40 recall positions
     as suggested in 'Disentangling Monocular 3D Object Detection'.
@@ -691,7 +691,7 @@ def ap_per_class_pascalvoc(tp, conf, pred_cls, target_cls, plot=False, on_plot=N
     Returns:
         Same as original function but with modified AP calculation using 40 recall positions.
     """
-    #print('\nNew ap_per_class_pascalvoc method (40 recall points) is being used.')
+    #print('\nNew ap_per_class_40P method (40 recall points) is being used.')
     #check_method = False
 
     # Sort by objectness
@@ -728,7 +728,7 @@ def ap_per_class_pascalvoc(tp, conf, pred_cls, target_cls, plot=False, on_plot=N
 
 	    # AP from recall-precision curve
         for j in range(tp.shape[1]):
-            ap[ci, j], mpre, mrec = compute_ap_pascalvoc(recall[:, j], precision[:, j]) # using the new 40 recall positions
+            ap[ci, j], mpre, mrec = compute_ap_40P(recall[:, j], precision[:, j]) # using the new 40 recall positions
             #if not check_method:
             #    print('\nNew AP calculation method (40 recall points) is being used.')
             #7    check_method = True
@@ -791,7 +791,6 @@ class Metric(SimpleClass):
         self.ap_class_index = []  # (nc, )
         self.nc = 0
        
-
     @property
     def ap50(self):
         """
@@ -878,20 +877,6 @@ class Metric(SimpleClass):
         """
         return self.all_ap[:, 4].mean() if len(self.all_ap) else []
 
-    """
-    KITTI AP
-    sum = 0;
-    for (i=1; i<=40; i++)
-        sum += vals[i]; 
-    average = sum/40.0;
-    """
-    # NOTE: https://github.com/lzccccc/kitti_eval_offline/blob/master/test_eval_offline.py#L4
-    # vals = [0] * 41
-    # sum = 0
-    # for i in range(1, 41):
-    #     sum += vals[i]
-    # average = sum / 40.0
-
     @property
     def mp(self):
         """
@@ -952,23 +937,7 @@ class Metric(SimpleClass):
             (float): The mAP over IoU thresholds of 0.5 - 0.95 in steps of 0.05.
         """
         return self.all_ap.mean() if len(self.all_ap) else 0.0
-
-    def mean_results(self):
-        """Mean of results, return mp, mr, map50, map70, map.""" # 25.01.25 updated by map70 for training job
-        return [self.mp, self.mr, self.map50, self.map70, self.map]
     
-    def mean_results_custom(self):
-        """Mean of results, return mp, mr, map50, map70""" # 11.03.25 custom validation job
-        return [self.mp, self.mr, self.map50, self.map70]
-
-    def class_result(self, i):
-        """Class-aware result, return p[i], r[i], ap50[i], ap70[i], ap[i].""" # 24.01.2025 updated by ap70 for training job
-        return self.p[i], self.r[i], self.ap50[i], self.ap70[i], self.ap[i]
-    
-    def class_result_custom(self, i):
-        """Class-aware result, return p[i], r[i], ap50[i], ap70[i]""" # 11.03.25 custom validation job
-        return self.p[i], self.r[i], self.ap50[i], self.ap70[i]
-
     @property
     def maps(self):
         """MAP of each class."""
@@ -976,6 +945,22 @@ class Metric(SimpleClass):
         for i, c in enumerate(self.ap_class_index):
             maps[c] = self.ap[i]
         return maps
+
+    def mean_results(self):
+        """Mean of results, return mp, mr, map50, map70, map.""" # 25.01.25 updated by map70 for training job
+        return [self.mp, self.mr, self.map50, self.map70, self.map]
+    
+    def class_result(self, i):
+        """Class-aware result, return p[i], r[i], ap50[i], ap70[i], ap[i].""" # 24.01.2025 updated by ap70 for training job
+        return self.p[i], self.r[i], self.ap50[i], self.ap70[i], self.ap[i]
+    
+    def mean_results_custom(self):
+        """Mean of results, return mp, mr, map50, map70""" # 11.03.25 custom validation job
+        return [self.mp, self.mr, self.map50, self.map70]
+    
+    def class_result_custom(self, i):
+        """Class-aware result, return p[i], r[i], ap50[i], ap70[i]""" # 11.03.25 custom validation job
+        return self.p[i], self.r[i], self.ap50[i], self.ap70[i]
 
     def fitness(self):
         """Model fitness as a weighted combination of metrics."""
@@ -1481,7 +1466,7 @@ class OBBMetrics(SimpleClass):
     def process(self, tp, conf, pred_cls, target_cls):
         """Process predicted results for object detection and update metrics."""
         #print('class OBBMetrics: process() called')
-        results = ap_per_class_pascalvoc( # new method for calculating AP with new interp of def compute_ap_pascalvoc().
+        results = ap_per_class_40P( # new method for calculating AP with new interp of def compute_ap_pascalvoc().
             tp,
             conf,
             pred_cls,
@@ -1552,10 +1537,11 @@ class OBBMetricsCustom(SimpleClass):
         self.box = Metric()
         self.speed = {"preprocess": 0.0, "inference": 0.0, "loss": 0.0, "postprocess": 0.0}
 
-    def process(self, tp, conf, pred_cls, target_cls):
+    def process(self, tp, conf, pred_cls, target_cls, difficulty=None):
         """Process predicted results for object detection and update metrics."""
         #print('class OBBMetricsCustom: process() called')
-        results = ap_per_class_pascalvoc( # new method for calculating AP with new interp of def compute_ap_pascalvoc().
+        # Calculate global metrics (for all difficulty levels combined)
+        results = ap_per_class_40P( # new method for calculating AP with new interp of def compute_ap_pascalvoc().
             tp,
             conf,
             pred_cls,
