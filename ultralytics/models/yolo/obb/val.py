@@ -340,17 +340,14 @@ class OBBValidatorCustom(DetectionValidatorCustom):
                 truncation = difficulty[obj_idx, 1]  # truncation
                 occlusion = difficulty[obj_idx, 2]  # occlusion
 
+                # Official KITTI difficulties:
                 if precal_height >= 40 and truncation <= 0.15 and occlusion <= 0: # fully visible
-                    #self.level_str = 'Easy'
                     level = 1 # Easy
                 elif precal_height >=25 and truncation <=0.3 and occlusion <= 1: # Partly occluded
-                    #self.level_str = 'Moderate'
                     level = 2 # Moderate
                 elif precal_height >= 25 and truncation <= 0.5 and occlusion <= 2: # Largely occluded
-                    #self.level_str = 'Hard'
                     level = 3 # Hard
                 else:
-                    #self.level_str = 'Unknown'
                     level = 0 # Unknown
                 
                 difficulty_levels.append(level)
