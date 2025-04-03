@@ -137,7 +137,6 @@ def verify_image_label(args):
                 if lb_temp.shape[1] > 8:
                     difficulty = lb_temp[:, 9:12]  # Columns 9, 10, and 11
                     
-
             if nl := len(lb):
                 if keypoint:
                     assert lb.shape[1] == (5 + nkpt * ndim), f"labels require {(5 + nkpt * ndim)} columns each"
