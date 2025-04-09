@@ -1537,10 +1537,9 @@ class OBBMetricsCustom(SimpleClass):
         self.box = Metric()
         self.speed = {"preprocess": 0.0, "inference": 0.0, "loss": 0.0, "postprocess": 0.0}
 
-    def process(self, tp, conf, pred_cls, target_cls, difficulty=None):
+    def process(self, tp, conf, pred_cls, target_cls, difficulty=None, valid_gt_mask=None):
         """Process predicted results for object detection and update metrics."""
         #print('class OBBMetricsCustom: process() called')
-        # Calculate global metrics (for all difficulty levels combined)
         results = ap_per_class_40P( # new method for calculating AP with new interp of def compute_ap_pascalvoc().
             tp,
             conf,

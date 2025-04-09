@@ -290,6 +290,83 @@ class OBBValidatorCustom(DetectionValidatorCustom):
         iou = batch_probiou(gt_bboxes, torch.cat([detections[:, :4], detections[:, -1:]], dim=-1))
         return self.match_predictions(detections[:, 5], gt_cls, iou)
 
+    # def _process_batch_test(self, detections, gt_bboxes, gt_cls, difficulty_levels=None, target_difficulty=None):
+    #     """
+    #     Return correct prediction matrix
+    #     Arguments:
+    #         detections (torch.Tensor): Vorhersagen
+    #         gt_bboxes (torch.Tensor): Ground-Truth-Boxen (bereits nach Schwierigkeit gefiltert)
+    #         gt_cls (torch.Tensor): Ground-Truth-Klassen (bereits nach Schwierigkeit gefiltert)
+    #         difficulty_levels (torch.Tensor, optional): Schwierigkeitsstufen für Ground-Truth-Boxen
+    #         target_difficulty (int, optional): Ziel-Schwierigkeitsstufe für die Bewertung
+    #     Returns:
+    #         (torch.Tensor): Binary tensor of shape (n, 10) for 10 IoU levels.
+    #     """
+    #     device = detections.device
+    #     n_pred = len(detections)
+    #     n_gt = len(gt_bboxes)
+        
+    #     # Initialisiere Ergebnismatrix
+    #     correct = torch.zeros((n_pred, self.niou), dtype=torch.bool, device=device)
+        
+    #     if n_gt == 0:
+    #         # Wenn keine Ground-Truth-Boxen vorhanden sind, gibt es keine True Positives
+    #         return correct
+        
+    #     # Berechne IoU zwischen allen Vorhersagen und Ground-Truth-Boxen
+    #     # Die IOU-Matrix hat die Form [n_gt, n_pred]
+    #     iou = batch_probiou(gt_bboxes, detections[:, :4])
+        
+    #     # Für jede IoU-Schwelle bewerten
+    #     for iou_idx, iou_thresh in enumerate(self.iouv):
+    #         # Für jede Ground-Truth-Box finde die beste übereinstimmende Vorhersage
+    #         matched_indices = []  # Bereits zugeordnete Vorhersagen
+            
+    #         for gt_idx in range(n_gt):
+    #             # Betrachte nur Vorhersagen mit der richtigen Klasse
+    #             class_mask = detections[:, 5].int() == gt_cls[gt_idx].int()
+                
+    #             # Überspringe, wenn keine Vorhersage für diese Klasse existiert
+    #             if not class_mask.any():
+    #                 continue
+                
+    #             # IoU-Werte für passende Vorhersagen
+    #             gt_ious = iou[gt_idx, class_mask]
+                
+    #             # Überspringe, wenn keine IoU-Werte vorhanden sind
+    #             if len(gt_ious) == 0:
+    #                 continue
+                
+    #             # Ignoriere bereits zugeordnete Vorhersagen
+    #             mask = torch.ones(len(gt_ious), dtype=torch.bool, device=device)
+    #             for idx in matched_indices:
+    #                 if idx in torch.where(class_mask)[0]:
+    #                     mask[torch.where(torch.where(class_mask)[0] == idx)[0]] = False
+                
+    #             # Wenn keine nicht zugeordneten Vorhersagen verbleiben, fortfahren
+    #             if not mask.any():
+    #                 continue
+                
+    #             # IoU-Werte für nicht zugeordnete Vorhersagen
+    #             valid_ious = gt_ious[mask]
+                
+    #             # Wenn keine gültigen IoU-Werte verbleiben, fortfahren
+    #             if len(valid_ious) == 0:
+    #                 continue
+                
+    #             # Finde die beste übereinstimmende nicht zugeordnete Vorhersage
+    #             best_idx = torch.argmax(valid_ious)
+                
+    #             # Konvertiere lokalen Index zu globalem Index
+    #             best_pred_idx = torch.where(class_mask)[0][torch.where(mask)[0][best_idx]]
+                
+    #             # Markiere als korrekt, wenn IoU > Schwellenwert
+    #             if valid_ious[best_idx] >= iou_thresh:
+    #                 correct[best_pred_idx, iou_idx] = True
+    #                 matched_indices.append(best_pred_idx)
+        
+    #     return correct
+
     def _prepare_batch(self, si, batch):
         """Prepares and returns a batch for OBB validation."""
         idx = batch["batch_idx"] == si

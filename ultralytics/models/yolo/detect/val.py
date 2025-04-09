@@ -12,6 +12,7 @@ from ultralytics.utils import LOGGER, ops
 from ultralytics.utils.checks import check_requirements
 from ultralytics.utils.metrics import ConfusionMatrix, DetMetrics, box_iou
 from ultralytics.utils.plotting import output_to_target, plot_images
+from ultralytics.utils.metrics import batch_probiou
 
 
 class DetectionValidator(BaseValidator):
@@ -366,7 +367,7 @@ class DetectionValidatorCustom(BaseValidatorCustom):
                 "WARNING ⚠️ 'save_hybrid=True' will append ground truth to predictions for autolabelling.\n"
                 "WARNING ⚠️ 'save_hybrid=True' will cause incorrect mAP.\n"
             )
-
+        
     def preprocess(self, batch):
         """Preprocesses batch of images for YOLO training."""
         batch["img"] = batch["img"].to(self.device, non_blocking=True)
@@ -428,13 +429,18 @@ class DetectionValidatorCustom(BaseValidatorCustom):
         idx = batch["batch_idx"] == si
         cls = batch["cls"][idx].squeeze(-1)
         bbox = batch["bboxes"][idx]
+
+        difficulty = batch.get("difficulty", None)
+        if difficulty is not None:
+            difficulty = difficulty[idx]
+
         ori_shape = batch["ori_shape"][si]
         imgsz = batch["img"].shape[2:]
         ratio_pad = batch["ratio_pad"][si]
         if len(cls):
             bbox = ops.xywh2xyxy(bbox) * torch.tensor(imgsz, device=self.device)[[1, 0, 1, 0]]  # target boxes
             ops.scale_boxes(imgsz, bbox, ori_shape, ratio_pad=ratio_pad)  # native-space labels
-        return {"cls": cls, "bbox": bbox, "ori_shape": ori_shape, "imgsz": imgsz, "ratio_pad": ratio_pad}
+        return {"cls": cls, "bbox": bbox, "ori_shape": ori_shape, "imgsz": imgsz, "ratio_pad": ratio_pad, "difficulty": difficulty}
 
     def _prepare_pred(self, pred, pbatch):
         """Prepares a batch of images and annotations for validation."""
@@ -448,84 +454,98 @@ class DetectionValidatorCustom(BaseValidatorCustom):
         """Get the object level from the difficulty metadata in data."""
         return difficulty
 
-    def update_metrics(self, preds, batch, target_difficulty=None): # maybe here the difficulty can be calculated
-        """Metrics."""
+    def update_metrics(self, preds, batch, target_difficulty=1): # maybe here the difficulty can be calculated
+            """Metrics."""
+            self.target_difficulty = target_difficulty # save difficulty for results output
 
-        self.target_difficulty = target_difficulty # save difficulty for results output
-
-        for si, pred in enumerate(preds):
-            self.seen += 1 # no. all validation images
-            npr = len(pred) # number predictions
-            stat = dict(
-                conf=torch.zeros(0, device=self.device),
-                pred_cls=torch.zeros(0, device=self.device),
-                tp=torch.zeros(npr, self.niou, dtype=torch.bool, device=self.device),
-            )
-
-            pbatch = self._prepare_batch(si, batch) # added difficulty key from batch, see _prepare_batch() in obb/val.py
-            cls, bbox = pbatch.pop("cls"), pbatch.pop("bbox")
-            # 12.03.25 Retrieve difficulty value from pbatch dictionary. Calculate difficulty levels for each object in the current sample
-            difficulty = pbatch["difficulty"]
-            difficulty_levels = self.get_kitti_obj_level(difficulty)
-
-            # DEBUG
-            #print("Difficulty_levels values:", difficulty_levels) 
-            #print("Difficulty_levels length:", len(difficulty_levels))
-
-            difficulty_levels = torch.tensor(difficulty_levels, device=self.device)
-           
-            if target_difficulty is not None:
-                mask = difficulty_levels == target_difficulty
-                cls = cls[mask]
-                bbox = bbox[mask]
-                difficulty_levels = difficulty_levels[mask]  
-
-            nl = len(cls) # number labels
-            stat["target_cls"] = cls
-            stat["target_img"] = cls.unique()
-            # 12.03.25 add the difficulty to stat dictionary
-            #stat["difficulty"] = torch.tensor(difficulty_levels, device=self.device) # obj. level current sample
-            # new
-            stat["difficulty"] = difficulty_levels
-
-            # Update global metrics
-            if npr == 0:
-                if nl:
-                    for k in self.stats.keys():
-                        self.stats[k].append(stat[k]) # tp, conf, pred_cls, target_cls, target_img, difficulty
-                    if self.args.plots:
-                        self.confusion_matrix.process_batch(detections=None, gt_bboxes=bbox, gt_cls=cls)
-                continue
-
-            # Predictions
-            if self.args.single_cls:
-                pred[:, 5] = 0
-            predn = self._prepare_pred(pred, pbatch) # in class OBBValidatorCustom
-            stat["conf"] = predn[:, 4] # confidence current sample
-            stat["pred_cls"] = predn[:, 5] # class current sample
-
-            # Evaluate
-            if nl: # numer labels
-                stat["tp"] = self._process_batch(predn, bbox, cls) # in class OBBValidatorCustom
-            if self.args.plots:
-                self.confusion_matrix.process_batch(predn, bbox, cls)
-            for k in self.stats.keys(): # 'conf', 'pred_cls', 'tp', 'target_cls', 'target_img', 'difficulty'
-                self.stats[k].append(stat[k])
-                
-                #current_value = self.stats[k][-1]
-                #print(f"Key: {k}, Shape: {current_value.shape}")
-                #print(f"Key: {k}, Content: {len(self.stats[k])}")
-
-            # Save
-            if self.args.save_json:
-                self.pred_to_json(predn, batch["im_file"][si])
-            if self.args.save_txt:
-                self.save_one_txt(
-                    predn,
-                    self.args.save_conf,
-                    pbatch["ori_shape"],
-                    self.save_dir / "labels" / f'{Path(batch["im_file"][si]).stem}.txt',
+            for si, pred in enumerate(preds):
+                self.seen += 1 # no. all validation images
+                npr = len(pred) # number predictions
+                stat = dict(
+                    conf=torch.zeros(0, device=self.device),
+                    pred_cls=torch.zeros(0, device=self.device),
+                    tp=torch.zeros(npr, self.niou, dtype=torch.bool, device=self.device),
                 )
+
+                pbatch = self._prepare_batch(si, batch) # added difficulty key from batch, see _prepare_batch() in obb/val.py
+                cls, bbox = pbatch.pop("cls"), pbatch.pop("bbox")
+                # 12.03.25 Retrieve difficulty value from pbatch dictionary. Calculate difficulty levels for each object in the current sample
+                difficulty = pbatch["difficulty"]
+                difficulty_levels = self.get_kitti_obj_level(difficulty)
+                difficulty_levels = torch.tensor(difficulty_levels, device=self.device)
+
+                # DEBUG
+                #print("Difficulty_levels values:", difficulty_levels) 
+                #print("Difficulty_levels length:", len(difficulty_levels))
+
+                valid_mask = (
+                    difficulty_levels == target_difficulty
+                    if target_difficulty is not None
+                    else torch.ones_like(difficulty_levels, dtype=torch.bool)
+                )
+                
+                cls = cls[valid_mask]
+                bbox = bbox[valid_mask]
+                difficulty_levels = difficulty_levels[valid_mask]
+                
+                nl = len(cls)  # number filtered labels
+                stat["target_cls"] = cls
+                stat["target_img"] = cls.unique()
+                stat["difficulty"] = difficulty_levels
+            
+                # Filter ground truth based on target difficulty
+                # if target_difficulty is not None:
+                #     mask = difficulty_levels == target_difficulty
+                #     cls = cls[mask]
+                #     bbox = bbox[mask]
+                #     difficulty_levels = difficulty_levels[mask]  
+
+                #nl = len(cls) # number labels
+                #stat["target_cls"] = cls
+                #stat["target_img"] = cls.unique()
+                # 12.03.25 add the difficulty to stat dictionary
+                #stat["difficulty"] = torch.tensor(difficulty_levels, device=self.device) # obj. level current sample
+                # new
+                #stat["difficulty"] = difficulty_levels
+
+                # Update global metrics
+                if npr == 0:
+                    if nl:
+                        for k in self.stats.keys():
+                            self.stats[k].append(stat[k]) # tp, conf, pred_cls, target_cls, target_img, difficulty
+                        if self.args.plots:
+                            self.confusion_matrix.process_batch(detections=None, gt_bboxes=bbox, gt_cls=cls)
+                    continue
+
+                # Predictions
+                if self.args.single_cls:
+                    pred[:, 5] = 0
+                predn = self._prepare_pred(pred, pbatch) # in class OBBValidatorCustom
+                stat["conf"] = predn[:, 4] # confidence current sample
+                stat["pred_cls"] = predn[:, 5] # class current sample
+
+                # Evaluate
+                if nl: # number labels
+                    stat["tp"] = self._process_batch(predn, bbox, cls)
+                if self.args.plots:
+                    self.confusion_matrix.process_batch(predn, bbox, cls)
+                for k in self.stats.keys(): # 'conf', 'pred_cls', 'tp', 'target_cls', 'target_img', 'difficulty'
+                    self.stats[k].append(stat[k])
+                    
+                    #current_value = self.stats[k][-1]
+                    #print(f"Key: {k}, Shape: {current_value.shape}")
+                    #print(f"Key: {k}, Content: {len(self.stats[k])}")
+
+                # Save
+                if self.args.save_json:
+                    self.pred_to_json(predn, batch["im_file"][si])
+                if self.args.save_txt:
+                    self.save_one_txt(
+                        predn,
+                        self.args.save_conf,
+                        pbatch["ori_shape"],
+                        self.save_dir / "labels" / f'{Path(batch["im_file"][si]).stem}.txt',
+                    )
 
     def finalize_metrics(self, *args, **kwargs):
         """Set final values for metrics speed and confusion matrix."""
@@ -555,9 +575,7 @@ class DetectionValidatorCustom(BaseValidatorCustom):
                 continue
             class_mask = stats["target_cls"] == class_idx
             class_difficulties = stats["difficulty"][class_mask]
-
             difficulty_counts = np.bincount(class_difficulties.astype(int), minlength=4)
-
             self.objects_per_class_and_difficulty[self.names[class_idx]] = {
                 "Easy": difficulty_counts[1],
                 "Moderate": difficulty_counts[2],
@@ -570,6 +588,7 @@ class DetectionValidatorCustom(BaseValidatorCustom):
         if len(stats) and stats["tp"].any():
             # here the metrics are calculated
             self.metrics.process(**stats) # class OBBMetricsCustom, 'tp', 'conf', 'pred_cls', 'target_cls', 'target_img', 'difficulty'
+    
         return self.metrics.results_dict
 
     def print_results(self):
