@@ -1959,7 +1959,6 @@ class Format:
         normalize=True,
         return_mask=False,
         return_keypoint=False,
-        return_difficulty=True, # TODO: maybe not necessary?
         return_obb=False,
         mask_ratio=4,
         mask_overlap=True,
@@ -2003,7 +2002,6 @@ class Format:
         self.normalize = normalize
         self.return_mask = return_mask  # set False when training detection only
         self.return_keypoint = return_keypoint
-        self.return_difficulty = return_difficulty # TODO: maybe not necessary?
         self.return_obb = return_obb
         self.mask_ratio = mask_ratio
         self.mask_overlap = mask_overlap
