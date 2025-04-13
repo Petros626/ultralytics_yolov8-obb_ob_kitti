@@ -551,9 +551,9 @@ def compute_ap_40P(recall, precision):
     """
     #print('\nNew compute_ap_40P method (40 recall points) is being used.') # DEBUG
 
-    # Append sentinel values (Recall=0 & Recall=1)
-    mrec = np.concatenate(([0.0], recall, [1.0]))
-    mpre = np.concatenate(([1.0], precision, [0.0]))
+    # Append sentinel values (Recall=0 & Recall=1), #PR 19738 fix mAP calculcation
+    mrec = np.concatenate(([0.0], recall, [recall[-1]], [1.0]))
+    mpre = np.concatenate(([1.0], precision, [0.0], [0.0]))
 
     # Compute the precision envelope: ρinterp(r)
     mpre = np.flip(np.maximum.accumulate(np.flip(mpre)))
@@ -1537,7 +1537,7 @@ class OBBMetricsCustom(SimpleClass):
         self.box = Metric()
         self.speed = {"preprocess": 0.0, "inference": 0.0, "loss": 0.0, "postprocess": 0.0}
 
-    def process(self, tp, conf, pred_cls, target_cls, difficulty=None, valid_gt_mask=None):
+    def process(self, tp, conf, pred_cls, target_cls, difficulty=None):
         """Process predicted results for object detection and update metrics."""
         #print('class OBBMetricsCustom: process() called')
         results = ap_per_class_40P( # new method for calculating AP with new interp of def compute_ap_pascalvoc().
