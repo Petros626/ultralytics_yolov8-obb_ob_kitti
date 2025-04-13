@@ -59,8 +59,8 @@ class YOLODataset(BaseDataset):
         #print('class YOLODataset: __init__() called')
         self.use_segments = task == "segment"
         self.use_keypoints = task == "pose"
-        self.use_difficulty = task == "obb" # TODO: maybe not necessary?
         self.use_obb = task == "obb"
+        self.use_difficulty = task == "obb"
         self.data = data
         assert not (self.use_segments and self.use_keypoints), "Can not use both segments and keypoints."
         super().__init__(*args, **kwargs)
@@ -194,7 +194,6 @@ class YOLODataset(BaseDataset):
                 normalize=True,
                 return_mask=self.use_segments,
                 return_keypoint=self.use_keypoints,
-                return_difficulty=self.use_difficulty, # TODO: maybe not necessary?
                 return_obb=self.use_obb,
                 batch_idx=True,
                 mask_ratio=hyp.mask_ratio,
