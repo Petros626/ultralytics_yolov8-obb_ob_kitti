@@ -234,6 +234,7 @@ class OBBValidatorCustom(DetectionValidatorCustom):
         self.args.task = "obb"
         self.metrics = OBBMetricsCustom(save_dir=self.save_dir, plot=True, on_plot=self.on_plot)
         self.printed = False # DEBUG variable
+        self.target_difficulty = None # here we can change the eval difficulty
 
     def init_metrics(self, model):
         """Initialize evaluation metrics for YOLO."""
@@ -261,123 +262,26 @@ class OBBValidatorCustom(DetectionValidatorCustom):
         )
         return arg 
 
-    def _process_batch(self, detections, gt_bboxes, gt_cls):
-        """
-        Perform computation of the correct prediction matrix for a batch of detections and ground truth bounding boxes.
-
-        Args:
-            detections (torch.Tensor): A tensor of shape (N, 7) representing the detected bounding boxes and associated
-                data. Each detection is represented as (x1, y1, x2, y2, conf, class, angle).
-            gt_bboxes (torch.Tensor): A tensor of shape (M, 5) representing the ground truth bounding boxes. Each box is
-                represented as (x1, y1, x2, y2, angle).
-            gt_cls (torch.Tensor): A tensor of shape (M,) representing class labels for the ground truth bounding boxes.
-
-        Returns:
-            (torch.Tensor): The correct prediction matrix with shape (N, 10), which includes 10 IoU (Intersection over
-                Union) levels for each detection, indicating the accuracy of predictions compared to the ground truth.
-
-        Example:
-            ```python
-            detections = torch.rand(100, 7)  # 100 sample detections
-            gt_bboxes = torch.rand(50, 5)  # 50 sample ground truth boxes
-            gt_cls = torch.randint(0, 5, (50,))  # 50 ground truth class labels
-            correct_matrix = OBBValidator._process_batch(detections, gt_bboxes, gt_cls)
-            ```
-
-        Note:
-            This method relies on `batch_probiou` to calculate IoU between detections and ground truth bounding boxes.
-        """
+    def _process_batch(self, detections, gt_bboxes, gt_cls, difficulty):
+        """Process batch with difficulty filtering."""
+        # 1. Calculate IoU with all ground truth boxes first
         iou = batch_probiou(gt_bboxes, torch.cat([detections[:, :4], detections[:, -1:]], dim=-1))
+        # 2. Get initial matches with all ground truth
         return self.match_predictions(detections[:, 5], gt_cls, iou)
-
-    # def _process_batch_test(self, detections, gt_bboxes, gt_cls, difficulty_levels=None, target_difficulty=None):
-    #     """
-    #     Return correct prediction matrix
-    #     Arguments:
-    #         detections (torch.Tensor): Vorhersagen
-    #         gt_bboxes (torch.Tensor): Ground-Truth-Boxen (bereits nach Schwierigkeit gefiltert)
-    #         gt_cls (torch.Tensor): Ground-Truth-Klassen (bereits nach Schwierigkeit gefiltert)
-    #         difficulty_levels (torch.Tensor, optional): Schwierigkeitsstufen für Ground-Truth-Boxen
-    #         target_difficulty (int, optional): Ziel-Schwierigkeitsstufe für die Bewertung
-    #     Returns:
-    #         (torch.Tensor): Binary tensor of shape (n, 10) for 10 IoU levels.
-    #     """
-    #     device = detections.device
-    #     n_pred = len(detections)
-    #     n_gt = len(gt_bboxes)
         
-    #     # Initialisiere Ergebnismatrix
-    #     correct = torch.zeros((n_pred, self.niou), dtype=torch.bool, device=device)
-        
-    #     if n_gt == 0:
-    #         # Wenn keine Ground-Truth-Boxen vorhanden sind, gibt es keine True Positives
-    #         return correct
-        
-    #     # Berechne IoU zwischen allen Vorhersagen und Ground-Truth-Boxen
-    #     # Die IOU-Matrix hat die Form [n_gt, n_pred]
-    #     iou = batch_probiou(gt_bboxes, detections[:, :4])
-        
-    #     # Für jede IoU-Schwelle bewerten
-    #     for iou_idx, iou_thresh in enumerate(self.iouv):
-    #         # Für jede Ground-Truth-Box finde die beste übereinstimmende Vorhersage
-    #         matched_indices = []  # Bereits zugeordnete Vorhersagen
-            
-    #         for gt_idx in range(n_gt):
-    #             # Betrachte nur Vorhersagen mit der richtigen Klasse
-    #             class_mask = detections[:, 5].int() == gt_cls[gt_idx].int()
-                
-    #             # Überspringe, wenn keine Vorhersage für diese Klasse existiert
-    #             if not class_mask.any():
-    #                 continue
-                
-    #             # IoU-Werte für passende Vorhersagen
-    #             gt_ious = iou[gt_idx, class_mask]
-                
-    #             # Überspringe, wenn keine IoU-Werte vorhanden sind
-    #             if len(gt_ious) == 0:
-    #                 continue
-                
-    #             # Ignoriere bereits zugeordnete Vorhersagen
-    #             mask = torch.ones(len(gt_ious), dtype=torch.bool, device=device)
-    #             for idx in matched_indices:
-    #                 if idx in torch.where(class_mask)[0]:
-    #                     mask[torch.where(torch.where(class_mask)[0] == idx)[0]] = False
-                
-    #             # Wenn keine nicht zugeordneten Vorhersagen verbleiben, fortfahren
-    #             if not mask.any():
-    #                 continue
-                
-    #             # IoU-Werte für nicht zugeordnete Vorhersagen
-    #             valid_ious = gt_ious[mask]
-                
-    #             # Wenn keine gültigen IoU-Werte verbleiben, fortfahren
-    #             if len(valid_ious) == 0:
-    #                 continue
-                
-    #             # Finde die beste übereinstimmende nicht zugeordnete Vorhersage
-    #             best_idx = torch.argmax(valid_ious)
-                
-    #             # Konvertiere lokalen Index zu globalem Index
-    #             best_pred_idx = torch.where(class_mask)[0][torch.where(mask)[0][best_idx]]
-                
-    #             # Markiere als korrekt, wenn IoU > Schwellenwert
-    #             if valid_ious[best_idx] >= iou_thresh:
-    #                 correct[best_pred_idx, iou_idx] = True
-    #                 matched_indices.append(best_pred_idx)
-        
-    #     return correct
 
     def _prepare_batch(self, si, batch):
         """Prepares and returns a batch for OBB validation."""
         idx = batch["batch_idx"] == si
         cls = batch["cls"][idx].squeeze(-1)
         bbox = batch["bboxes"][idx]
+        # 12.03.25 extract the difficulty from batch dictionary 
+        difficulty = batch["difficulty"][si] # si = might be sample index?
+
         ori_shape = batch["ori_shape"][si]
         imgsz = batch["img"].shape[2:]
         ratio_pad = batch["ratio_pad"][si]
     
-        # 12.03.25 extract the difficulty from batch dictionary 
-        difficulty = batch["difficulty"][si] # si = might be sample index?
         # DEBUG
         #print("Difficulty values:", difficulty) 
         #print("Difficulty length:", len(difficulty))
@@ -385,7 +289,13 @@ class OBBValidatorCustom(DetectionValidatorCustom):
         if len(cls):
             bbox[..., :4].mul_(torch.tensor(imgsz, device=self.device)[[1, 0, 1, 0]])  # target boxes
             ops.scale_boxes(imgsz, bbox, ori_shape, ratio_pad=ratio_pad, xywh=True)  # native-space labels
-        return {"cls": cls, "bbox": bbox, "ori_shape": ori_shape, "imgsz": imgsz, "ratio_pad": ratio_pad, "difficulty": difficulty} # 12.03.25 add difficulty to dict
+        return {"cls": cls, 
+                "bbox": bbox, 
+                "ori_shape": ori_shape, 
+                "imgsz": imgsz, 
+                "ratio_pad": ratio_pad, 
+                "difficulty": difficulty # 12.03.25 add difficulty to dict
+        }
 
     def get_kitti_obj_level(self, difficulty):
         """

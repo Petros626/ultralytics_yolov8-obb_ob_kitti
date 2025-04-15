@@ -429,18 +429,13 @@ class DetectionValidatorCustom(BaseValidatorCustom):
         idx = batch["batch_idx"] == si
         cls = batch["cls"][idx].squeeze(-1)
         bbox = batch["bboxes"][idx]
-
-        difficulty = batch.get("difficulty", None)
-        if difficulty is not None:
-            difficulty = difficulty[idx]
-
         ori_shape = batch["ori_shape"][si]
         imgsz = batch["img"].shape[2:]
         ratio_pad = batch["ratio_pad"][si]
         if len(cls):
             bbox = ops.xywh2xyxy(bbox) * torch.tensor(imgsz, device=self.device)[[1, 0, 1, 0]]  # target boxes
             ops.scale_boxes(imgsz, bbox, ori_shape, ratio_pad=ratio_pad)  # native-space labels
-        return {"cls": cls, "bbox": bbox, "ori_shape": ori_shape, "imgsz": imgsz, "ratio_pad": ratio_pad, "difficulty": difficulty}
+        return {"cls": cls, "bbox": bbox, "ori_shape": ori_shape, "imgsz": imgsz, "ratio_pad": ratio_pad}
 
     def _prepare_pred(self, pred, pbatch):
         """Prepares a batch of images and annotations for validation."""
@@ -454,10 +449,14 @@ class DetectionValidatorCustom(BaseValidatorCustom):
         """Get the object level from the difficulty metadata in data."""
         return difficulty
 
-    def update_metrics(self, preds, batch, target_difficulty=1): # maybe here the difficulty can be calculated
-            """Metrics."""
-            self.target_difficulty = target_difficulty # save difficulty for results output
+    def update_metrics(self, preds, batch): # maybe here the difficulty can be calculated
+            """
+            Update metrics with new predictions and ground truth.
 
+            Args:
+                preds (List[torch.Tensor]): List of predictions from the model.
+                batch (dict): Batch data containing ground truth.
+            """
             for si, pred in enumerate(preds):
                 self.seen += 1 # no. all validation images
                 npr = len(pred) # number predictions
@@ -470,43 +469,18 @@ class DetectionValidatorCustom(BaseValidatorCustom):
                 pbatch = self._prepare_batch(si, batch) # added difficulty key from batch, see _prepare_batch() in obb/val.py
                 cls, bbox = pbatch.pop("cls"), pbatch.pop("bbox")
                 # 12.03.25 Retrieve difficulty value from pbatch dictionary. Calculate difficulty levels for each object in the current sample
-                difficulty = pbatch["difficulty"]
-                difficulty_levels = self.get_kitti_obj_level(difficulty)
-                difficulty_levels = torch.tensor(difficulty_levels, device=self.device)
+                difficulty = pbatch.pop("difficulty")
+                difficulty_levels = torch.tensor(self.get_kitti_obj_level(difficulty), 
+                                       device=self.device)
 
                 # DEBUG
                 #print("Difficulty_levels values:", difficulty_levels) 
-                #print("Difficulty_levels length:", len(difficulty_levels))
+                #print("Difficulty_levels length:", len(difficulty_levels))            
 
-                valid_mask = (
-                    difficulty_levels == target_difficulty
-                    if target_difficulty is not None
-                    else torch.ones_like(difficulty_levels, dtype=torch.bool)
-                )
-                
-                cls = cls[valid_mask]
-                bbox = bbox[valid_mask]
-                difficulty_levels = difficulty_levels[valid_mask]
-                
                 nl = len(cls)  # number filtered labels
                 stat["target_cls"] = cls
                 stat["target_img"] = cls.unique()
-                stat["difficulty"] = difficulty_levels
-            
-                # Filter ground truth based on target difficulty
-                # if target_difficulty is not None:
-                #     mask = difficulty_levels == target_difficulty
-                #     cls = cls[mask]
-                #     bbox = bbox[mask]
-                #     difficulty_levels = difficulty_levels[mask]  
-
-                #nl = len(cls) # number labels
-                #stat["target_cls"] = cls
-                #stat["target_img"] = cls.unique()
-                # 12.03.25 add the difficulty to stat dictionary
-                #stat["difficulty"] = torch.tensor(difficulty_levels, device=self.device) # obj. level current sample
-                # new
-                #stat["difficulty"] = difficulty_levels
+                stat["difficulty"] = difficulty_levels # maybe can be deleted
 
                 # Update global metrics
                 if npr == 0:
@@ -526,7 +500,7 @@ class DetectionValidatorCustom(BaseValidatorCustom):
 
                 # Evaluate
                 if nl: # number labels
-                    stat["tp"] = self._process_batch(predn, bbox, cls)
+                    stat["tp"] = self._process_batch(predn, bbox, cls, difficulty)
                 if self.args.plots:
                     self.confusion_matrix.process_batch(predn, bbox, cls)
                 for k in self.stats.keys(): # 'conf', 'pred_cls', 'tp', 'target_cls', 'target_img', 'difficulty'
@@ -568,7 +542,6 @@ class DetectionValidatorCustom(BaseValidatorCustom):
         self.nt_per_image = np.bincount(stats["target_img"].astype(int), minlength=self.nc) # no. targets per image
         self.nd_per_class = np.bincount(stats["difficulty"].astype(int), minlength=4) # no. difficulties per class
         
-        
         # 15.03.25 processes statistics for different classes and their difficulty levels
         for class_idx in range(self.nc):
             if class_idx == 0 and 0 in self.names:
@@ -584,6 +557,7 @@ class DetectionValidatorCustom(BaseValidatorCustom):
             }
 
         stats.pop("target_img", None)
+        #stats.pop("difficulty", None) # remove difficulty from stats
 
         if len(stats) and stats["tp"].any():
             # here the metrics are calculated
