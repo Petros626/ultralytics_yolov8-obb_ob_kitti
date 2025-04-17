@@ -129,6 +129,7 @@ class Detect(nn.Module):
             )
             return dbox.transpose(1, 2), cls.sigmoid().permute(0, 2, 1)
         else:
+            # during model.val() the decode_bboxes is called.
             dbox = self.decode_bboxes(self.dfl(box), self.anchors.unsqueeze(0)) * self.strides
 
         return torch.cat((dbox, cls.sigmoid()), 1)
@@ -216,7 +217,7 @@ class OBB(Detect):
         bs = x[0].shape[0]  # batch size
         angle = torch.cat([self.cv4[i](x[i]).view(bs, self.ne, -1) for i in range(self.nl)], 2)  # OBB theta logits
         # NOTE: set `angle` as an attribute so that `decode_bboxes` could use it.
-        angle = (angle.sigmoid() - 0.25) * math.pi  # [-pi/4, 3pi/4]
+        angle = (angle.sigmoid() - 0.25) * math.pi  # [-pi/4, 3pi/4] => [-45°, 135°] without post-processing
         # angle = angle.sigmoid() * math.pi / 2  # [0, pi/2]
         if not self.training:
             self.angle = angle

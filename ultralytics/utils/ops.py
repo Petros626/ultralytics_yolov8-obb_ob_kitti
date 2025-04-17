@@ -564,7 +564,7 @@ def xyxyxyxy2xywhr(x):
         #    angle = 0
         #    w, h = h, w
             
-        rboxes.append([cx, cy, w, h, angle / 180 * np.pi])
+        rboxes.append([cx, cy, w, h, angle / 180 * np.pi]) # degree -> rad
     return torch.tensor(rboxes, device=x.device, dtype=x.dtype) if is_torch else np.asarray(rboxes)
 
 

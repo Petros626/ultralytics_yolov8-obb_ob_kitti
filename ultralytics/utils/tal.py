@@ -376,6 +376,7 @@ def dist2rbox(pred_dist, pred_angle, anchor_points, dim=-1):
     Returns:
         (torch.Tensor): Predicted rotated bounding boxes, shape (bs, h*w, 4).
     """
+    # method gets called during validation
     lt, rb = pred_dist.split(2, dim=dim)
     cos, sin = torch.cos(pred_angle), torch.sin(pred_angle)
     # (bs, h*w, 1)
