@@ -877,7 +877,8 @@ class Exporter:
                     trt.IInt8Calibrator.__init__(self)
                     self.dataset = dataset
                     self.data_iter = iter(dataset)
-                    self.algo = trt.CalibrationAlgoType.ENTROPY_CALIBRATION_2
+                    # PR 20345
+                    self.algo = trt.CalibrationAlgoType.MINMAX_CALIBRATION
                     self.batch = batch
                     self.cache = Path(cache)
 
