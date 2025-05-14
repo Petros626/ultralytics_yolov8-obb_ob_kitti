@@ -219,6 +219,7 @@ class OBB(Detect):
         # NOTE: set `angle` as an attribute so that `decode_bboxes` could use it.
         angle = (angle.sigmoid() - 0.25) * math.pi  # [-pi/4, 3pi/4] => [-45°, 135°] without post-processing
         # angle = angle.sigmoid() * math.pi / 2  # [0, pi/2]
+
         if not self.training:
             self.angle = angle
         x = Detect.forward(self, x)

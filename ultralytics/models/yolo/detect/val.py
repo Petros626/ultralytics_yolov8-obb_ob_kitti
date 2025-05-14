@@ -11,7 +11,7 @@ from ultralytics.engine.validator import BaseValidator, BaseValidatorCustom
 from ultralytics.utils import LOGGER, ops
 from ultralytics.utils.checks import check_requirements
 from ultralytics.utils.metrics import ConfusionMatrix, DetMetrics, box_iou
-from ultralytics.utils.plotting import output_to_target, plot_images
+from ultralytics.utils.plotting import output_to_target, plot_images, plot_matches
 from ultralytics.utils.metrics import batch_probiou
 
 
@@ -82,7 +82,11 @@ class DetectionValidator(BaseValidator):
         self.nc = len(model.names)
         self.metrics.names = self.names
         self.metrics.plot = self.args.plots
-        self.confusion_matrix = ConfusionMatrix(nc=self.nc, conf=self.args.conf)
+        if self.args.plots and self.args.visualize:
+            (self.save_dir / "visualizations").mkdir(exist_ok=True)
+        self.confusion_matrix = ConfusionMatrix(
+            nc=self.nc, conf=self.args.conf, save_matches=self.args.plots and self.args.visualize
+        )
         self.seen = 0
         self.jdict = []
         self.stats = dict(tp=[], conf=[], pred_cls=[], target_cls=[], target_img=[])
@@ -146,7 +150,9 @@ class DetectionValidator(BaseValidator):
                     for k in self.stats.keys():
                         self.stats[k].append(stat[k])
                     if self.args.plots:
-                        self.confusion_matrix.process_batch(detections=None, gt_bboxes=bbox, gt_cls=cls)
+                        self.confusion_matrix.process_batch(
+                            detections=None, gt_bboxes=bbox, gt_cls=cls, im_name=Path(batch["im_file"][si]).name
+                        )
                 continue
 
             # Predictions
@@ -160,11 +166,13 @@ class DetectionValidator(BaseValidator):
             if nl:
                 stat["tp"] = self._process_batch(predn, bbox, cls)
             if self.args.plots:
-                self.confusion_matrix.process_batch(predn, bbox, cls)
+                self.confusion_matrix.process_batch(predn, bbox, cls, im_name=Path(batch["im_file"][si]).name)
             for k in self.stats.keys():
                 self.stats[k].append(stat[k])
 
             # Save
+            if self.args.plots and self.args.visualize:
+                plot_matches(self, batch, preds, si)
             if self.args.save_json:
                 self.pred_to_json(predn, batch["im_file"][si])
             if self.args.save_txt:
@@ -401,7 +409,11 @@ class DetectionValidatorCustom(BaseValidatorCustom):
         self.nc = len(model.names)
         self.metrics.names = self.names
         self.metrics.plot = self.args.plots
-        self.confusion_matrix = ConfusionMatrix(nc=self.nc, conf=self.args.conf)
+        if self.args.plots and self.args.visualize:
+            (self.save_dir / "visualizations").mkdir(exist_ok=True)
+        self.confusion_matrix = ConfusionMatrix(
+            nc=self.nc, conf=self.args.conf, save_matches=self.args.plots and self.args.visualize
+        )
         self.seen = 0
         self.jdict = []
         self.stats = dict(tp=[], conf=[], pred_cls=[], target_cls=[], target_img=[], difficulty=[]) # add list for difficulty
@@ -488,7 +500,10 @@ class DetectionValidatorCustom(BaseValidatorCustom):
                         for k in self.stats.keys():
                             self.stats[k].append(stat[k]) # tp, conf, pred_cls, target_cls, target_img, difficulty
                         if self.args.plots:
-                            self.confusion_matrix.process_batch(detections=None, gt_bboxes=bbox, gt_cls=cls)
+                            self.confusion_matrix.process_batch(
+                            detections=None, gt_bboxes=bbox, gt_cls=cls, im_name=Path(batch["im_file"][si]).name
+                        )
+                            #self.confusion_matrix.process_batch(detections=None, gt_bboxes=bbox, gt_cls=cls)
                     continue
 
                 # Predictions
@@ -502,7 +517,8 @@ class DetectionValidatorCustom(BaseValidatorCustom):
                 if nl: # number labels
                     stat["tp"] = self._process_batch(predn, bbox, cls, difficulty)
                 if self.args.plots:
-                    self.confusion_matrix.process_batch(predn, bbox, cls)
+                    self.confusion_matrix.process_batch(predn, bbox, cls, im_name=Path(batch["im_file"][si]).name)
+                    #self.confusion_matrix.process_batch(predn, bbox, cls)
                 for k in self.stats.keys(): # 'conf', 'pred_cls', 'tp', 'target_cls', 'target_img', 'difficulty'
                     self.stats[k].append(stat[k])
                     
@@ -511,6 +527,8 @@ class DetectionValidatorCustom(BaseValidatorCustom):
                     #print(f"Key: {k}, Content: {len(self.stats[k])}")
 
                 # Save
+                if self.args.plots and self.args.visualize:
+                    plot_matches(self, batch, preds, si)
                 if self.args.save_json:
                     self.pred_to_json(predn, batch["im_file"][si])
                 if self.args.save_txt:
@@ -694,7 +712,7 @@ class DetectionValidatorCustom(BaseValidatorCustom):
     def save_one_txt(self, predn, save_conf, shape, file):
         """Save YOLO detections to a txt file in normalized coordinates in a specific format."""
         from ultralytics.engine.results import Results
-
+  
         Results(
             np.zeros((shape[0], shape[1]), dtype=np.uint8),
             path=None,
