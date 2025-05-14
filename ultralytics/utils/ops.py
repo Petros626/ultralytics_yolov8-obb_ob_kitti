@@ -542,6 +542,7 @@ def xyxyxyxy2xywhr(x):
     Returns:
         (numpy.ndarray | torch.Tensor): Converted data in [cx, cy, w, h, rotation] format of shape (n, 5).
     """
+    #print("xyxyxyxy2xywhr called\n")
     is_torch = isinstance(x, torch.Tensor)
     points = x.cpu().numpy() if is_torch else x
     points = points.reshape(len(x), -1, 2)
@@ -551,9 +552,11 @@ def xyxyxyxy2xywhr(x):
         # especially some objects are cut off by augmentations in dataloader. Developer should keep in mind 
         # that the returned RotatedRect can contain negative indices when data is close to the containing Mat element boundary.
         # source: https://mmrotate.readthedocs.io/en/latest/intro.html
+        # https://theailearner.com/tag/cv2-minarearect/#:~:text=OpenCV%20provides%20a%20function%20cv2,)%2C%20angle%20of%20rotation).
         (cx, cy), (w, h), angle = cv2.minAreaRect(pts)
 
-	    # TODO: Test this two different angle pre-processing approaches
+	    # TODO: Test this two different angle pre-processing approaches (training)
+        # TODO: Test for post-processing
         # 21.12.2024: 0° → 90° and Width/Height switch (tested from user: dfl_loss lower)
         #if angle == -0.0 or angle == 0.0: # NOTE: https://github.com/ultralytics/ultralytics/issues/15771
         #    angle = 90
@@ -563,7 +566,6 @@ def xyxyxyxy2xywhr(x):
         #if angle == 90: # NOTE: https://github.com/ultralytics/ultralytics/pull/16237
         #    angle = 0
         #    w, h = h, w
-            
         rboxes.append([cx, cy, w, h, angle / 180 * np.pi]) # degree -> rad
     return torch.tensor(rboxes, device=x.device, dtype=x.dtype) if is_torch else np.asarray(rboxes)
 
@@ -797,13 +799,21 @@ def regularize_rboxes(rboxes):
     Returns:
         (torch.Tensor): The regularized boxes.
     """
-    x, y, w, h, t = rboxes.unbind(dim=-1)
+    # Old code
+    #x, y, w, h, t = rboxes.unbind(dim=-1)
     # Swap edge and angle if h >= w
-    w_ = torch.where(w > h, w, h)
-    h_ = torch.where(w > h, h, w)
-    t = torch.where(w > h, t, t + math.pi / 2) % math.pi # [0...pi]
+    #w_ = torch.where(w > h, w, h)
+    #h_ = torch.where(w > h, h, w)
+    #t = torch.where(w > h, t, t + math.pi / 2) % math.pi # [0...pi]
     # 22.12.2024 NOTE: https://github.com/ultralytics/ultralytics/issues/8930 ; https://github.com/ultralytics/ultralytics/issues/8930#issuecomment-2558692356
     # t = (torch.where(w > h, t, t + math.pi / 2) + math.pi) % (math.pi / 2) # [0, pi/2]
+    # New code
+    x, y, w, h, t = rboxes.unbind(dim=-1)
+    # Swap edge if t >= pi/2 while not being symmetrically opposite
+    swap = t % math.pi >= math.pi / 2
+    w_ = torch.where(swap, h, w)
+    h_ = torch.where(swap, w, h)
+    t = t % (math.pi / 2)
     return torch.stack([x, y, w_, h_, t], dim=-1)  # regularized boxes
 
 

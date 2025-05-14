@@ -17,6 +17,7 @@ from ultralytics.utils import LOGGER, SimpleClass, ops
 from ultralytics.utils.checks import check_requirements
 from ultralytics.utils.plotting import Annotator, colors, save_one_box
 from ultralytics.utils.torch_utils import smart_inference_mode
+from ultralytics.utils.ops import regularize_rboxes
 
 
 class BaseTensor(SimpleClass):
@@ -703,7 +704,15 @@ class Results(SimpleClass):
             # Detect/segment/pose
             for j, d in enumerate(boxes):
                 c, conf, id = int(d.cls), float(d.conf), None if d.id is None else int(d.id.item())
-                line = (c, *(d.xyxyxyxyn.view(-1) if is_obb else d.xywhn.view(-1)))
+                # Default xyxyxyxy format gets saved
+                #line = (c, *(d.xyxyxyxyn.view(-1) if is_obb else d.xywhn.view(-1)))
+                # In my case I wanted the format x,y,w,h,r and make sure r is in [0, pi/2]
+                line = (c, *(regularize_rboxes(d.xywhr.view(-1)) if is_obb else d.xyxyxyxyn.view(-1)))
+                # DEBUGGING
+                #angle_rad = line[5]
+                #angle_deg = angle_rad * (180/np.pi)
+                #print(f"angle={angle_deg:.2f}°")
+
                 if masks:
                     seg = masks[j].xyn[0].copy().reshape(-1)  # reversed mask.xyn, (n,2) to (n*2)
                     line = (c, *seg)
