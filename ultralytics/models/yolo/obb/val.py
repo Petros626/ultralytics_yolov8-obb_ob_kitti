@@ -248,7 +248,6 @@ class OBBValidatorCustom(DetectionValidatorCustom):
         if not self.printed:
             #print('class OBBValidatorCustom: postprocess() called')
             self.printed = True
-
         arg = ops.non_max_suppression(
             preds,
             self.args.conf,
@@ -302,7 +301,7 @@ class OBBValidatorCustom(DetectionValidatorCustom):
         Determines the difficulty level of objects based on the KITTI dataset's criteria.
 
         This function processes a given `difficulty` array containing metadata about objects in a scene.
-        Each object's difficulty level is calculated based on its height, truncation, and occlusion values.
+        Each object's difficulty level is calculated based on its bbox, truncation, and occlusion values.
         The function assigns one of the following difficulty levels for each object:
             - `1`: Easy
             - `2`: Moderate
@@ -311,9 +310,9 @@ class OBBValidatorCustom(DetectionValidatorCustom):
 
         Parameters:
             difficulty (np.ndarray): A 2D array where each row corresponds to an object and contains:
-                - Column 0: height (float)
-                - Column 1: truncation (float)
-                - Column 2: occlusion (int)
+                - Column 0-3: bbox (float)
+                - Column 4: truncation (float)
+                - Column 5: occlusion (int)
 
         Returns:
             List[int]: A list of difficulty levels for all objects in the input array.
@@ -321,18 +320,25 @@ class OBBValidatorCustom(DetectionValidatorCustom):
         """
         difficulty_levels = []
 
-        if isinstance(difficulty, np.ndarray) and difficulty.shape[1] >=3:
+        if isinstance(difficulty, np.ndarray) and difficulty.shape[1] > 0:
             for obj_idx in range(difficulty.shape[0]):
-                precal_height = difficulty[obj_idx, 0]  # height
-                truncation = difficulty[obj_idx, 1]  # truncation
-                occlusion = difficulty[obj_idx, 2]  # occlusion
-
+                # Check format based on number of columns
+                if difficulty.shape[1] >= 6:  # New format with full bbox
+                    y1 = difficulty[obj_idx, 1]  # bbox_y1
+                    y2 = difficulty[obj_idx, 3] # bbox_y2
+                    height = float(y2) - float(y1) + 1
+                    truncation = difficulty[obj_idx, 4]  # truncation
+                    occlusion = difficulty[obj_idx, 5]  # occlusion
+                elif difficulty.shape[1] >= 3:  # Old format or other format with at least height, trunc, occl
+                    height = difficulty[obj_idx, 0]  # height is first column
+                    truncation = difficulty[obj_idx, 1]  # truncation
+                    occlusion = difficulty[obj_idx, 2]  # occlusion
                 # Official KITTI difficulties:
-                if precal_height >= 40 and truncation <= 0.15 and occlusion <= 0: # fully visible
+                if height >= 40 and truncation <= 0.15 and occlusion <= 0: # fully visible
                     level = 1 # Easy
-                elif precal_height >=25 and truncation <=0.3 and occlusion <= 1: # Partly occluded
+                elif height >=25 and truncation <=0.3 and occlusion <= 1: # Partly occluded
                     level = 2 # Moderate
-                elif precal_height >= 25 and truncation <= 0.5 and occlusion <= 2: # Largely occluded
+                elif height >= 25 and truncation <= 0.5 and occlusion <= 2: # Largely occluded
                     level = 3 # Hard
                 else:
                     level = 0 # Unknown
@@ -383,9 +389,11 @@ class OBBValidatorCustom(DetectionValidatorCustom):
 
         from ultralytics.engine.results import Results
 
-        rboxes = torch.cat([predn[:, :4], predn[:, -1:]], dim=-1)
         # xywh, r, conf, cls
+        rboxes = torch.cat([predn[:, :4], predn[:, -1:]], dim=-1)
+
         obb = torch.cat([rboxes, predn[:, 4:6]], dim=-1)
+
         Results(
             np.zeros((shape[0], shape[1]), dtype=np.uint8),
             path=None,
