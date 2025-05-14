@@ -1,0 +1,4 @@
+Folder 'val' now contains the 3699 labels with the new bbox information (x1 y1 x2 y2) from KITTI.
+In 'val_good' the 'old' 3699 labels with the precalculated height (y2 - y1) + 1 from the bbox information are stored.
+
+I made sure, that the evaluation metrics were the same for the 16907 objects of both label versions.
