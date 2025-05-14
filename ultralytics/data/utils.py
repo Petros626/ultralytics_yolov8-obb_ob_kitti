@@ -122,11 +122,12 @@ def verify_image_label(args):
             with open(lb_file) as f:
                 lb = [x.split() for x in f.read().strip().splitlines() if len(x)] # default read all values from labels
 
-                # 01.01.2025 keep only the first 9 values, NOTE: use 10-12 for validation
-                # Label to extract only difficulty information
+                # Temporary label to extract only difficulty information
                 lb_temp = np.array(lb, dtype=np.float32)
+                # 01.01.2025 keep only the first 9 values, NOTE: use 10-12 for validation
+                # Custom format: class_index x1 y1 x2 y2 x3 y3 x4 y4 bbox truncation occlusion
                 lb = [x[:9] for x in lb] # Label YOLO format
-
+                
                 if any(len(x) > 6 for x in lb) and (not keypoint):  # is segment
                     classes = np.array([x[0] for x in lb], dtype=np.float32)
                     segments = [np.array(x[1:], dtype=np.float32).reshape(-1, 2) for x in lb]  # (cls, xy1...)
@@ -134,9 +135,18 @@ def verify_image_label(args):
                 lb = np.array(lb, dtype=np.float32) # full label array
 
                 # 08.03.25 Extract difficulties information, if available
-                if lb_temp.shape[1] > 8:
-                    difficulty = lb_temp[:, 9:12]  # Columns 9, 10, and 11
-                    
+                # Format: [class, x1-y4 (8 Werte OBB), bbox_x1, bbox_y1, bbox_x2, bbox_y2, truncation, occlusion]
+                if lb_temp.shape[1] >= 14:
+                    bbox_x1, bbox_y1 = 9, 10
+                    bbox_x2, bbox_y2 = 11, 12
+                    truncation, occlusion = 13, 14
+                    difficulty = lb_temp[:, [bbox_x1, bbox_y1, bbox_x2, bbox_y2, truncation, occlusion]] 
+                # Format: [class, x1-y4 (8 Werte OBB), height, truncation, occlusion]
+                elif lb_temp.shape[1] >= 11:
+                    height_idx = 9
+                    truncation, occlusion = 10, 11
+                    difficulty = lb_temp[:, [height_idx, truncation, occlusion]] 
+
             if nl := len(lb):
                 if keypoint:
                     assert lb.shape[1] == (5 + nkpt * ndim), f"labels require {(5 + nkpt * ndim)} columns each"
