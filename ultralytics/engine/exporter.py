@@ -879,6 +879,9 @@ class Exporter:
                     self.data_iter = iter(dataset)
                     # PR 20345
                     self.algo = trt.CalibrationAlgoType.MINMAX_CALIBRATION
+                    # test these two
+                    #self.algo = trt.CalibrationAlgoType.LEGACY_CALIBRATION
+                    #self.algo = trt.CalibrationAlgoType.ENTROPY_CALIBRATION
                     self.batch = batch
                     self.cache = Path(cache)
 
