@@ -706,9 +706,14 @@ class Results(SimpleClass):
                 c, conf, id = int(d.cls), float(d.conf), None if d.id is None else int(d.id.item())
                 # Default xyxyxyxy format gets saved
                 #line = (c, *(d.xyxyxyxyn.view(-1) if is_obb else d.xywhn.view(-1)))
+
                 # In my case I wanted the format x,y,w,h,r and make sure r is in [0, pi/2]
-                line = (c, *(regularize_rboxes(d.xywhr.view(-1)) if is_obb else d.xyxyxyxyn.view(-1)))
-                # DEBUGGING
+                #line = (c, *(regularize_rboxes(d.xywhr.view(-1)) if is_obb else d.xyxyxyxyn.view(-1)))
+
+                # If you want r in [-pi/4...3pi/4] range, use this
+                line = (c, *(d.xywhr.view(-1) if is_obb else d.xyxyxyxyn.view(-1)))
+
+                # DEBUGGING: see the angles with and without regularization
                 #angle_rad = line[5]
                 #angle_deg = angle_rad * (180/np.pi)
                 #print(f"angle={angle_deg:.2f}°")
