@@ -542,7 +542,6 @@ def xyxyxyxy2xywhr(x):
     Returns:
         (numpy.ndarray | torch.Tensor): Converted data in [cx, cy, w, h, rotation] format of shape (n, 5).
     """
-    #print("xyxyxyxy2xywhr called\n")
     is_torch = isinstance(x, torch.Tensor)
     points = x.cpu().numpy() if is_torch else x
     points = points.reshape(len(x), -1, 2)
@@ -552,7 +551,7 @@ def xyxyxyxy2xywhr(x):
         # especially some objects are cut off by augmentations in dataloader. Developer should keep in mind 
         # that the returned RotatedRect can contain negative indices when data is close to the containing Mat element boundary.
         # source: https://mmrotate.readthedocs.io/en/latest/intro.html
-        # https://theailearner.com/tag/cv2-minarearect/#:~:text=OpenCV%20provides%20a%20function%20cv2,)%2C%20angle%20of%20rotation).
+        # old convention: https://theailearner.com/tag/cv2-minarearect/#:~:text=OpenCV%20provides%20a%20function%20cv2.
         (cx, cy), (w, h), angle = cv2.minAreaRect(pts)
 
 	    # TODO: Test this two different angle pre-processing approaches (training)
@@ -790,16 +789,17 @@ def scale_coords(img1_shape, coords, img0_shape, ratio_pad=None, normalize=False
 
 
 def regularize_rboxes(rboxes):
-    """
-    Regularize rotated boxes in range [0, pi] (not default [0, pi/2]).
-
-    Args:
-        rboxes (torch.Tensor): Input boxes of shape(N, 5) in xywhr format.
-
-    Returns:
-        (torch.Tensor): The regularized boxes.
-    """
     # Old code
+    # """
+    # Regularize rotated boxes in range [0, pi] (not default [0, pi/2]).
+
+    # Args:
+    #     rboxes (torch.Tensor): Input boxes of shape(N, 5) in xywhr format.
+
+    # Returns:
+    #     (torch.Tensor): The regularized boxes.
+    # """
+    
     #x, y, w, h, t = rboxes.unbind(dim=-1)
     # Swap edge and angle if h >= w
     #w_ = torch.where(w > h, w, h)
@@ -808,6 +808,15 @@ def regularize_rboxes(rboxes):
     # 22.12.2024 NOTE: https://github.com/ultralytics/ultralytics/issues/8930 ; https://github.com/ultralytics/ultralytics/issues/8930#issuecomment-2558692356
     # t = (torch.where(w > h, t, t + math.pi / 2) + math.pi) % (math.pi / 2) # [0, pi/2]
     # New code
+    """
+    Regularize rotated boxes in range [0, pi/2].
+
+    Args:
+        rboxes (torch.Tensor): Input boxes of shape(N, 5) in xywhr format.
+
+    Returns:
+        (torch.Tensor): The regularized boxes.
+    """
     x, y, w, h, t = rboxes.unbind(dim=-1)
     # Swap edge if t >= pi/2 while not being symmetrically opposite
     swap = t % math.pi >= math.pi / 2
