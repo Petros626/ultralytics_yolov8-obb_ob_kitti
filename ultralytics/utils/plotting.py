@@ -333,7 +333,7 @@ class Annotator:
             lineType=cv2.LINE_AA,
         )
 
-    def box_label(self, box, label="", color=(128, 128, 128), txt_color=(255, 255, 255), rotated=False):
+    def box_label(self, box, label="", color=(128, 128, 128), txt_color=(255, 255, 255), rotated=False, show_corners=False):
         """
         Draws a bounding box to image with label.
 
@@ -343,6 +343,8 @@ class Annotator:
             color (tuple, optional): The background color of the rectangle (B, G, R).
             txt_color (tuple, optional): The color of the text (R, G, B).
             rotated (bool, optional): Variable used to check if task is OBB
+            show_corners (bool, optional): If True, shows corner points with numbers for rotated boxes
+
         """
         txt_color = self.get_txt_color(color, txt_color)
         if isinstance(box, torch.Tensor):
@@ -369,9 +371,39 @@ class Annotator:
             if rotated:
                 p1 = [int(b) for b in box[0]]
                 cv2.polylines(self.im, [np.asarray(box, dtype=int)], True, color, self.lw)  # cv2 requires nparray box
+                
+                # Custom implemented
+                if show_corners:
+                    corner_colors = [
+                        (255, 0, 0),    # Punkt 0: Red
+                        (0, 255, 0),    # Punkt 1: Green
+                        (0, 0, 255),    # Punkt 2: Blue
+                        (255, 255, 0),  # Punkt 3: Yellow
+                    ]
+
+                    points = np.asarray(box, dtype=int)
+                    for i in range(4):
+                        cv2.line(self.im, tuple(points[i]), tuple(points[(i+1) % 4]), (255, 255, 255), 1)
+
+                    for i, point in enumerate(box):
+                        point_x, point_y = int(point[0]), int(point[1])
+                        # Draw circle at corner
+                        #cv2.circle(self.im, (point_x, point_y), max(self.lw + 1, 5), corner_colors[i], -1)
+                        # Draw number (i+1 to start counting from 1 instead of 0)
+                        cv2.putText(
+                            self.im, 
+                            str(i+1), 
+                            (point_x + 10, point_y + 10),
+                            cv2.FONT_HERSHEY_DUPLEX, 
+                            self.sf, 
+                            corner_colors[i], 
+                            max(self.tf, 2), 
+                            cv2.LINE_AA
+                        )
             else:
                 p1, p2 = (int(box[0]), int(box[1])), (int(box[2]), int(box[3]))
                 cv2.rectangle(self.im, p1, p2, color, thickness=self.lw, lineType=cv2.LINE_AA)
+
             if label:
                 w, h = cv2.getTextSize(label, 0, fontScale=self.sf, thickness=self.tf)[0]  # text width, height
                 h += 3  # add pixels to pad text
@@ -1021,6 +1053,7 @@ def plot_images(
     max_subplots: int = 16,
     save: bool = True,
     conf_thres: float = 0.25,
+    show_corner_points= False
 ) -> Optional[np.ndarray]:
     """
     Plot image grid with labels, bounding boxes, masks, and keypoints.
@@ -1083,7 +1116,7 @@ def plot_images(
 
     # Annotate
     fs = int((h + w) * ns * 0.01)  # font size
-    annotator = Annotator(mosaic, line_width=round(fs / 10), font_size=fs, pil=True, example=names)
+    annotator = Annotator(mosaic, line_width=round(fs / 10), font_size=fs, pil=False, example=names)
     for i in range(bs):
         x, y = int(w * (i // ns)), int(h * (i % ns))  # block origin
         annotator.rectangle([x, y, x + w, y + h], None, (255, 255, 255), width=2)  # borders
@@ -1105,6 +1138,7 @@ def plot_images(
                         boxes[..., :4] *= scale
                 boxes[..., 0] += x
                 boxes[..., 1] += y
+    
                 is_obb = boxes.shape[-1] == 5  # xywhr
                 boxes = ops.xywhr2xyxyxyxy(boxes) if is_obb else ops.xywh2xyxy(boxes)
                 for j, box in enumerate(boxes.astype(np.int64).tolist()):
@@ -1113,7 +1147,7 @@ def plot_images(
                     c = names.get(c, c) if names else c
                     if labels or conf[j] > conf_thres:
                         label = f"{c}" if labels else f"{c} {conf[j]:.1f}"
-                        annotator.box_label(box, label, color=color, rotated=is_obb)
+                        annotator.box_label(box, label, color=color, rotated=is_obb, show_corners=show_corner_points)
 
             elif len(classes):
                 for c in classes:
