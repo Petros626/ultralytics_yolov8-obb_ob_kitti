@@ -1,0 +1,35 @@
+# The KITTI Vision Benchmark Suite Creative Commons Attribution-NonCommercial-ShareAlike 3.0 - http://creativecommons.org/licenses/by-nc-sa/3.0/
+
+# KITTI dataset by Karlsruhe Institute of Technology and Toyota Technological Institute at Chicago
+# Documentation: https://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=bev, https://github.com/bostondiditeam/kitti
+# Example usage: yolo train data=kitti_bev.yaml
+# parent
+# ├── ultralytics
+#     └── cfg
+#         └── datasets
+#             └── master_thesis
+#                 ├── kitti_upsampled
+#                     ├── images
+#                     |    ├── train
+#                     |    └── val
+#                     └── labels
+#                          ├── train
+#                          └── val
+
+
+# Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
+#path: /home/heizung1/ultralytics_yolov8-obb_ob_kitti/ultralytics/cfg/datasets/master_thesis/kitti # dataset root dir
+path: master_thesis/kitti_upsampled # dataset root dir
+train: images/train # train images (relative to 'path') 25256 images
+val: images/val # val images (relative to 'path') 3675 images 
+test: # test images (optional)
+
+# Classes in YOLO format (category_id starts at 0) 
+names:
+  0: None
+  1: Car
+  2: Ped.
+  3: Cyc.
+
+# Download script/URL (optional)
+download: https://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=bev
