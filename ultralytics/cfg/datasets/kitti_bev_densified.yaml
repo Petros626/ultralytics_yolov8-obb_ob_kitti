@@ -18,8 +18,8 @@
 
 
 # Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
-#path: /home/heizung1/ultralytics_yolov8-obb_ob_kitti/ultralytics/cfg/datasets/master_thesis/kitti # dataset root dir
-path: master_thesis/kitti_densified # dataset root dir
+path: /home/heizung1/ultralytics_yolov8-obb_ob_kitti/ultralytics/cfg/datasets/master_thesis/kitti_densified # dataset root dir
+#path: master_thesis/kitti_densified # dataset root dir
 train: images/train # train images (relative to 'path') 25256 images
 val: images/val # val images (relative to 'path') 3675 images 
 test: # test images (optional)
