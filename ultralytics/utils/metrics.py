@@ -857,6 +857,7 @@ class Metric(SimpleClass):
         mp: Mean precision of all classes.
         mr: Mean recall of all classes.
         map50: Mean AP at IoU threshold of 0.5 for all classes.
+        map70: Mean AP at IoU threshold of 0.7 for all classes.
         map75: Mean AP at IoU threshold of 0.75 for all classes.
         map: Mean AP at IoU thresholds from 0.5 to 0.95 for all classes.
         mean_results: Mean of results, returns mp, mr, map50, map.
@@ -885,6 +886,17 @@ class Metric(SimpleClass):
             (np.ndarray | list): Array of shape (nc,) with AP50 values per class, or an empty list if not available.
         """
         return self.all_ap[:, 0] if len(self.all_ap) else []
+    
+    # source: https://github.com/ultralytics/ultralytics/issues/9138
+    @property
+    def ap70(self) -> np.ndarray | list:
+        """Return the Average Precision (AP) at an IoU threshold of 0.7 for all classes.
+
+        Returns:
+        (np.array, list): Array of shape (nc,) with AP70 values per class, or an empty list if not available.
+        """
+        # mAP list: [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+        return self.all_ap[:, 4] if len(self.all_ap) else []
 
     @property
     def ap(self) -> np.ndarray | list:
@@ -921,6 +933,17 @@ class Metric(SimpleClass):
             (float): The mAP at an IoU threshold of 0.5.
         """
         return self.all_ap[:, 0].mean() if len(self.all_ap) else 0.0
+    
+    # source: https://github.com/ultralytics/ultralytics/issues/9138
+    @property
+    def map70(self) -> float:
+        """Return the mean Average Precision (mAP) at an IoU threshold of 0.7.
+
+        Returns:
+            (float): The mAP at an IoU threshold of 0.7.
+        """
+        # mAP list: [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+        return self.all_ap[:, 4].mean() if len(self.all_ap) else 0.0
 
     @property
     def map75(self) -> float:
@@ -941,12 +964,12 @@ class Metric(SimpleClass):
         return self.all_ap.mean() if len(self.all_ap) else 0.0
 
     def mean_results(self) -> list[float]:
-        """Return mean of results, mp, mr, map50, map."""
-        return [self.mp, self.mr, self.map50, self.map]
+        """Return mean of results, mp, mr, map50, map70."""
+        return [self.mp, self.mr, self.map50, self.map70]
 
     def class_result(self, i: int) -> tuple[float, float, float, float]:
-        """Return class-aware result, p[i], r[i], ap50[i], ap[i]."""
-        return self.p[i], self.r[i], self.ap50[i], self.ap[i]
+        """Return class-aware result, p[i], r[i], ap50[i], ap70[i]."""
+        return self.p[i], self.r[i], self.ap50[i], self.ap70[i]
 
     @property
     def maps(self) -> np.ndarray:
@@ -958,7 +981,7 @@ class Metric(SimpleClass):
 
     def fitness(self) -> float:
         """Return model fitness as a weighted combination of metrics."""
-        w = [0.0, 0.0, 0.0, 1.0]  # weights for [P, R, mAP@0.5, mAP@0.5:0.95]
+        w = [0.0, 0.0, 0.0, 0.0]  # weights for [P, R, mAP@0.5, mAP@0.7]
         return (np.nan_to_num(np.array(self.mean_results())) * w).sum()
 
     def update(self, results: tuple):
@@ -1098,10 +1121,10 @@ class DetMetrics(SimpleClass, DataExportMixin):
     @property
     def keys(self) -> list[str]:
         """Return a list of keys for accessing specific metrics."""
-        return ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP50-95(B)"]
+        return ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP70(B)"]
 
     def mean_results(self) -> list[float]:
-        """Calculate mean of detected objects & return precision, recall, mAP50, and mAP50-95."""
+        """Calculate mean of detected objects & return precision, recall, mAP50, and mAP70."""
         return self.box.mean_results()
 
     def class_result(self, i: int) -> tuple[float, float, float, float]:
@@ -1142,7 +1165,7 @@ class DetMetrics(SimpleClass, DataExportMixin):
 
     def summary(self, normalize: bool = True, decimals: int = 5) -> list[dict[str, Any]]:
         """Generate a summarized representation of per-class detection metrics as a list of dictionaries. Includes
-        shared scalar metrics (mAP, mAP50, mAP75) alongside precision, recall, and F1-score for each class.
+        shared scalar metrics (mAP, mAP50, mAP70) alongside precision, recall, and F1-score for each class.
 
         Args:
             normalize (bool): For Detect metrics, everything is normalized by default [0-1].
@@ -1169,7 +1192,7 @@ class DetMetrics(SimpleClass, DataExportMixin):
                 "Instances": self.nt_per_class[self.ap_class_index[i]],
                 **{k: round(v[i], decimals) for k, v in per_class.items()},
                 "mAP50": round(self.class_result(i)[2], decimals),
-                "mAP50-95": round(self.class_result(i)[3], decimals),
+                "mAP70": round(self.class_result(i)[3], decimals),
             }
             for i in range(len(per_class["Box-P"]))
         ]
