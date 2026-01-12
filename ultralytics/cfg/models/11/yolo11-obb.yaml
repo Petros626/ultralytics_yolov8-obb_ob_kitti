@@ -6,7 +6,6 @@
 
 # Parameters
 nc: 4 # number of classes (KITTI/ZOD: None, Car, Pedestrian, Cyclist)
-reg_max: 12 # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
 scales: # model compound scaling constants, i.e. 'model=yolo11n-obb.yaml' will call yolo11-obb.yaml with scale 'n'
   # [depth, width, max_channels]
   n: [0.50, 0.25, 1024] # summary: 196 layers, 2695747 parameters, 2695731 gradients, 6.9 GFLOPs
