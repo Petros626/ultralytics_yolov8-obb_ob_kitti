@@ -981,7 +981,7 @@ class Metric(SimpleClass):
 
     def fitness(self) -> float:
         """Return model fitness as a weighted combination of metrics."""
-        w = [0.0, 0.0, 0.0, 0.0]  # weights for [P, R, mAP@0.5, mAP@0.7]
+        w = [0.0, 0.0, 0.1, 0.1]  # weights for [P, R, mAP@0.5, mAP@0.7]
         return (np.nan_to_num(np.array(self.mean_results())) * w).sum()
 
     def update(self, results: tuple):
