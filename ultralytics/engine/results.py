@@ -694,7 +694,11 @@ class Results(SimpleClass, DataExportMixin):
             # Detect/segment/pose
             for j, d in enumerate(boxes):
                 c, conf, id = int(d.cls), float(d.conf), int(d.id.item()) if d.is_track else None
-                line = (c, *(d.xyxyxyxyn.view(-1) if is_obb else d.xywhn.view(-1)))
+                # Default: xyxyxyxy format
+                #line = (c, *(d.xyxyxyxyn.view(-1) if is_obb else d.xywhn.view(-1)))
+                # My work: xywhr format with [-pi/4, 3pi/4] is required
+                line = (c, *(d.xywhr.view(-1) if is_obb else d.xyxyxyxy.view(-1)))
+
                 if masks:
                     seg = masks[j].xyn[0].copy().reshape(-1)  # reversed mask.xyn, (n,2) to (n*2)
                     line = (c, *seg)
