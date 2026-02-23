@@ -2,6 +2,8 @@ from ultralytics import YOLO
 import torch
 import os
 
+
+
 # Set expandable_segments to reduce memory fragmentation
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
